@@ -14,7 +14,6 @@ ml_runs/features/
 ml_runs/torch_cache/
 optimization/camera_replay/tmp*/
 work/cache/
-work/runs/**/*.pt
 work/release/
 .superpowers/
 .claude/session-memory/

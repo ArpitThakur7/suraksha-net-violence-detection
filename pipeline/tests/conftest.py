@@ -30,13 +30,25 @@ def _frame_rgb(i, w, h, gray=False):
 
 
 def _write(path, n, fps, w, h, gray=False):
+    if gray:
+        # genuine single-channel stream: ffv1 with pix_fmt gray
+        with av.open(str(path), "w") as c:
+            s = c.add_stream("ffv1", rate=fps)
+            s.width, s.height, s.pix_fmt = w, h, "gray"
+            for i in range(n):
+                g = _frame_rgb(i, w, h, gray=True)[..., 0]
+                for p in s.encode(av.VideoFrame.from_ndarray(g, format="gray")):
+                    c.mux(p)
+            for p in s.encode():
+                c.mux(p)
+        return
     for codec in ("mpeg4", "libx264"):
         try:
             with av.open(str(path), "w") as c:
                 s = c.add_stream(codec, rate=fps)
                 s.width, s.height, s.pix_fmt = w, h, "yuv420p"
                 for i in range(n):
-                    f = av.VideoFrame.from_ndarray(_frame_rgb(i, w, h, gray), format="rgb24")
+                    f = av.VideoFrame.from_ndarray(_frame_rgb(i, w, h), format="rgb24")
                     for p in s.encode(f):
                         c.mux(p)
                 for p in s.encode():

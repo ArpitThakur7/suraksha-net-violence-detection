@@ -51,3 +51,7 @@ def test_tiny_videos_decodable(tiny_videos):
             assert len(frames) == n
             assert (s.width, s.height) == (w, h)
             assert round(float(s.average_rate)) == fps
+            if k == "gray":
+                assert s.codec_context.pix_fmt == "gray"
+            else:
+                assert s.codec_context.pix_fmt == "yuv420p"
