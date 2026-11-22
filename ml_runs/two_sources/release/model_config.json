@@ -1,0 +1,18 @@
+{
+  "backbone": "resnet18",
+  "length": 16,
+  "hidden": 256,
+  "layers": 2,
+  "dropout": 0.3,
+  "optimizer": "adamw",
+  "lr": 0.001,
+  "augment": false,
+  "weighted": false,
+  "epochs": 12,
+  "seed": 42,
+  "trainable": "head",
+  "sources": [
+    "sfd",
+    "avd"
+  ]
+}

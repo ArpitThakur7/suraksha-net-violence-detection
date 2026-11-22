@@ -1,0 +1,10 @@
+camera,mode,windows,confirmed_windows
+camera-1,majority,11,3
+camera-1,average,11,3
+camera-1,consecutive,11,3
+camera-2,majority,12,4
+camera-2,average,12,4
+camera-2,consecutive,12,3
+camera-3,majority,7,2
+camera-3,average,7,2
+camera-3,consecutive,7,1

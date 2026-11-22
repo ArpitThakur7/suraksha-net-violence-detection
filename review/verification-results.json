@@ -1,0 +1,98 @@
+{
+  "train_val_layout_without_test": {
+    "dataset": "rwf",
+    "train_count": 100,
+    "val_count": 20,
+    "test_count": 0,
+    "train_violence": 50,
+    "train_nonviolence": 50,
+    "val_violence": 10,
+    "val_nonviolence": 10,
+    "test_violence": 0,
+    "test_nonviolence": 0,
+    "class_weights": [
+      1,
+      1
+    ]
+  },
+  "combined_discards_original_split_membership": {
+    "counts": {
+      "dataset": "combined",
+      "train_count": 98,
+      "val_count": 20,
+      "test_count": 22,
+      "train_violence": 49,
+      "train_nonviolence": 49,
+      "val_violence": 10,
+      "val_nonviolence": 10,
+      "test_violence": 11,
+      "test_nonviolence": 11,
+      "class_weights": [
+        1,
+        1
+      ]
+    },
+    "original_test_paths_now_in_train": 15,
+    "example": "rwf\\test\\Violence\\clip_008.avi"
+  },
+  "paired_camera_scene_fixture": {
+    "train_test_shared_scenes": 40,
+    "train_val_shared_scenes": 33,
+    "note": "Demonstrates missing scene grouping; not an observation of original unavailable split manifests."
+  },
+  "documented_handoff_config_call": {
+    "exception": "KeyError",
+    "message": "'model'"
+  },
+  "readme_cli_train.py": {
+    "exit_code": 2,
+    "last_error": "train.py: error: unrecognized arguments: --amp"
+  },
+  "readme_cli_evaluate.py": {
+    "exit_code": 2,
+    "last_error": "evaluate.py: error: the following arguments are required: --checkpoint"
+  },
+  "saved_metric_arithmetic": {
+    "values_checked": 160,
+    "mismatches": [],
+    "note": "Checks arithmetic only; does not independently reproduce predictions or ROC-AUC."
+  },
+  "synthetic_named_test_errors": [
+    {
+      "artifact": "experiments\\sfd_efficientnet_16frames\\error_analysis.json",
+      "video_name": "sample_004.mp4",
+      "dataset_source": "sfd",
+      "actual_label": 0,
+      "predicted_label": 1,
+      "violence_probability": 0.5253
+    },
+    {
+      "artifact": "experiments\\sfd_efficientnet_16frames\\error_analysis.json",
+      "video_name": "sample_001.mp4",
+      "dataset_source": "sfd",
+      "actual_label": 0,
+      "predicted_label": 1,
+      "violence_probability": 0.5253
+    },
+    {
+      "artifact": "experiments\\sfd_vgg16_16frames\\error_analysis.json",
+      "video_name": "sample_004.mp4",
+      "dataset_source": "sfd",
+      "actual_label": 0,
+      "predicted_label": 1,
+      "violence_probability": 0.9639
+    },
+    {
+      "artifact": "experiments\\sfd_vgg16_16frames\\error_analysis.json",
+      "video_name": "sample_001.mp4",
+      "dataset_source": "sfd",
+      "actual_label": 0,
+      "predicted_label": 1,
+      "violence_probability": 0.9639
+    }
+  ],
+  "python_syntax": {
+    "files_checked": 15,
+    "valid": true
+  }
+}

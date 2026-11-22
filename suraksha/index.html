@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Suraksha-Net · Recording review</title>
+<style>
+:root{font-family:Inter,Segoe UI,sans-serif;color:#192a32;background:#f3f5f3;color-scheme:light}*{box-sizing:border-box}body{margin:0}header{background:#172e35;color:white;padding:18px max(4vw,20px);font-size:20px;font-weight:650;letter-spacing:-.04em}main{max-width:1160px;margin:auto;padding:32px 20px}h1{font-size:clamp(30px,5vw,48px);margin:0 0 22px;letter-spacing:-.055em}h2{font-size:21px;margin:0 0 14px;letter-spacing:-.035em}form,.panel{background:#fff;border:1px solid #cdd8d5;border-radius:12px;padding:19px}form{display:flex;gap:18px;align-items:end;flex-wrap:wrap;margin-bottom:10px}label{font-weight:600;display:grid;gap:7px;font-size:14px}input,select,button{font:inherit;max-width:100%}input,select{border:1px solid #b9c8c5;background:white;padding:7px;border-radius:6px}button{border:0;border-radius:6px;padding:9px 14px;background:#185a53;color:white;cursor:pointer}button:disabled{opacity:.6}#msg{min-height:20px;color:#394e50}section.grid{display:grid;grid-template-columns:minmax(0,2fr) minmax(240px,1fr);gap:16px}video{width:100%;background:#13272b;border-radius:8px;max-height:430px;min-height:150px}#library{width:100%;margin-bottom:15px}.incident{border-top:1px solid #d3dedb;padding:15px 0;display:grid;grid-template-columns:68px 1fr;gap:10px}.incident img{width:68px;border-radius:5px}.incident p{margin:6px 0}.jump{padding:0;background:none;color:#17655b;font-weight:700}.muted{color:#53686a;font-size:14px}.scores{margin-top:12px;width:100%;border-collapse:collapse;font-variant-numeric:tabular-nums}.scores td,.scores th{text-align:left;padding:5px;border-bottom:1px solid #dae3df}summary{cursor:pointer;margin-top:14px}@media(max-width:720px){section.grid{grid-template-columns:1fr}main{padding:20px 12px}}
+</style>
+<header>Suraksha-Net</header><main><h1>Recording review</h1>
+<form id="form"><label>Recording<input name="file" type="file" accept="video/mp4,.mp4" required></label>
+<label>Alert threshold<input name="threshold" type="number" value="0.40" min="0" max="1" step="0.01" required></label>
+<button id="run">Analyze recording</button></form>
+<p id="msg" role="status" aria-live="polite">Choose a recorded MP4 to review.</p>
+<section class="grid"><div class="panel"><h2>Playback</h2><label>Saved recordings<select id="library" aria-label="Saved recordings"></select></label>
+<video id="player" controls playsinline></video><details><summary>Window scores</summary><table class="scores"><thead><tr><th>Time range</th><th>Violence score</th></tr></thead><tbody id="scores"></tbody></table></details></div>
+<div class="panel"><h2>Flagged intervals</h2><div id="incidents" class="muted">Analyze a recording to see its intervals.</div></div></section>
+<section class="panel" style="margin-top:16px"><h2>Camera alerts</h2><div id="cameraAlerts" aria-live="polite"></div></section></main>
+<script>
+const el=id=>document.getElementById(id), player=el('player'), library=el('library'), msg=el('msg');
+const node=(tag,text)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;return n};
+const time=x=>Math.floor(x/60)+':'+String(Math.floor(x)%60).padStart(2,'0')+'.'+Math.floor((x%1)*10);
+const percent=x=>(100*x).toFixed(1)+'%';
+async function api(path,options){const r=await fetch(path,options);if(!r.ok){const body=await r.json().catch(()=>({}));throw Error(typeof body.detail==='string'?body.detail:'Request failed ('+r.status+')')}return r.json()}
+function seekButton(x,y){const b=node('button',time(x)+' – '+time(y));b.className='jump';b.onclick=()=>{player.currentTime=x;player.play().catch(()=>{})};return b}
+function show(data){
+ player.src='/api/videos/'+data.id+'/media';el('scores').replaceChildren();el('incidents').replaceChildren();
+ for(const w of data.windows){const tr=node('tr'),td=node('td');td.append(seekButton(w.start,w.end));tr.append(td,node('td',percent(w.score)));el('scores').append(tr)}
+ if(!data.incidents.length)el('incidents').textContent='No windows reached the selected threshold.';
+ for(const i of data.incidents){const row=node('div'),image=node('img'),body=node('div'),lab=node('label','Review status'),sel=node('select');
+ row.className='incident';image.src='/api/incidents/'+i.id+'/image';image.alt='Frame from flagged interval';
+ for(const status of ['New','Reviewed','False alarm'])sel.add(new Option(status,status,false,status===i.status));
+ sel.onchange=async()=>{sel.disabled=true;try{await api('/api/incidents/'+i.id,{method:'PATCH',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:sel.value})});i.status=sel.value;msg.textContent='Review saved.'}catch(e){sel.value=i.status;msg.textContent=e.message}finally{sel.disabled=false}};
+ lab.append(sel);body.append(seekButton(i.start,i.end),node('p','Peak score '+percent(i.score)),lab);row.append(image,body);el('incidents').append(row)}
+ msg.textContent=data.name+' · '+time(data.duration)+' · Threshold '+data.threshold.toFixed(2)+' · '+data.model;
+}
+async function refresh(selected){const rows=await api('/api/videos');library.replaceChildren();if(!rows.length){library.add(new Option('No saved recordings',''));return}
+ for(const r of rows)library.add(new Option(r.name,r.id));library.value=selected||rows[0].id;show(await api('/api/videos/'+library.value))}
+library.onchange=()=>api('/api/videos/'+library.value).then(show).catch(e=>msg.textContent=e.message);
+el('form').onsubmit=async e=>{e.preventDefault();el('run').disabled=true;msg.textContent='Analyzing video windows…';try{const result=await api('/api/videos',{method:'POST',body:new FormData(e.target)});await refresh(result.id)}catch(err){msg.textContent=err.message}finally{el('run').disabled=false}};
+refresh().catch(e=>msg.textContent=e.message);
+api('/api/detector').then(c=>document.querySelector('[name=threshold]').value=c.threshold.toFixed(2)).catch(e=>msg.textContent=e.message);
+let alertState='',operatorKey='';
+async function cameraAlerts(){
+ const items=await api('/api/alerts'),state=JSON.stringify(items);
+ if(state===alertState)return;
+ const area=el('cameraAlerts');area.replaceChildren();
+ for(const item of items){
+  const row=node('div'),img=node('img'),body=node('div'),label=node('label','Incident status'),sel=node('select');
+  row.className='incident';img.src='/api/alerts/'+item.id+'/snapshot';img.alt='Camera incident snapshot';img.loading='lazy';
+  for(const s of ['New','Acknowledged','Resolved','False alarm'])sel.add(new Option(s,s,false,s===item.status));
+  sel.onchange=async()=>{
+   const save=key=>fetch('/api/alerts/'+item.id,{method:'PATCH',headers:{'Content-Type':'application/json','X-API-Key':key},body:JSON.stringify({status:sel.value})});
+   sel.disabled=true;
+   try{let res=await save(operatorKey);
+    if(res.status===401){operatorKey=prompt('Enter the configured camera API key')||'';res=await save(operatorKey)}
+    if(!res.ok)throw Error('Status update failed ('+res.status+')');
+    alertState='';await cameraAlerts();
+   }catch(e){sel.value=item.status;msg.textContent=e.message}finally{sel.disabled=false}
+  };
+  label.append(sel);body.append(node('strong',item.location+' · '+item.camera),node('p',new Date(item.captured).toLocaleString()+' · Violence score '+percent(item.confidence)),label);
+  row.append(img,body);area.append(row);
+ }
+ if(!items.length)area.textContent='No camera alerts received.';
+ alertState=state;
+}
+cameraAlerts().catch(e=>el('cameraAlerts').textContent=e.message);
+setInterval(()=>cameraAlerts().catch(()=>{}),5000);
+</script></html>

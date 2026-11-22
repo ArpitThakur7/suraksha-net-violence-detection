@@ -1,0 +1,33 @@
+{
+  "backbone": "resnet18",
+  "length": 16,
+  "hidden": 256,
+  "layers": 1,
+  "dropout": 0.3,
+  "optimizer": "adamw",
+  "lr": 0.001,
+  "augment": false,
+  "weighted": false,
+  "epochs": 12,
+  "seed": 42,
+  "trainable": "head",
+  "sources": [
+    "sfd"
+  ],
+  "best_epoch": 5,
+  "threshold": 0.5,
+  "accuracy": 0.6444444444444445,
+  "precision": 0.6153846153846154,
+  "recall": 0.7272727272727273,
+  "sensitivity": 0.7272727272727273,
+  "specificity": 0.5652173913043478,
+  "f1": 0.6666666666666666,
+  "fpr": 0.43478260869565216,
+  "fnr": 0.2727272727272727,
+  "roc_auc": 0.6185770750988142,
+  "tp": 16,
+  "tn": 13,
+  "fp": 10,
+  "fn": 6,
+  "n": 45
+}

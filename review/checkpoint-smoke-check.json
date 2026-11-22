@@ -1,0 +1,27 @@
+{
+  "architecture": "ResNet18 feature extractor + 1-layer LSTM(512,256) + Linear(256,128,2)",
+  "implementation": "Matching torch-only diagnostic; repository code unchanged",
+  "strict_state_dict_load": "passed",
+  "missing_keys": [],
+  "unexpected_keys": [],
+  "parameter_count": 11998146,
+  "random_input_shape": [
+    1,
+    16,
+    3,
+    224,
+    224
+  ],
+  "output_shape": [
+    1,
+    2
+  ],
+  "finite_output": true,
+  "probabilities_sum_to_one": true,
+  "optimizer_states_with_nonzero_first_moment": 68,
+  "history_csv_values_compared": 48,
+  "history_csv_mismatches": [],
+  "repo_metrics_epochs": 8,
+  "checkpoint_history_epochs": 6,
+  "note": "No real video was used. No accuracy or latency benchmark was performed. Original dataset membership remains unverified."
+}

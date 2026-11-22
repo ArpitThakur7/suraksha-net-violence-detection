@@ -1,0 +1,5 @@
+{
+  "name": "lstm_layers_2",
+  "threshold": 0.3,
+  "criterion": "validation F1 then recall then ROC-AUC"
+}
