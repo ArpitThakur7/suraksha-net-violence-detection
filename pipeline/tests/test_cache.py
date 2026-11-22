@@ -63,3 +63,52 @@ def test_failure_recorded(tiny_videos, tmp_path):
     d = C.cache_dir(cfg)
     assert (d / "a.npz").exists()
     assert "z" in (d / "failures.csv").read_text()
+
+
+def _one(tiny_videos, tmp_path, cid="c1"):
+    cfg = _cfg(tmp_path)
+    ref = decode_frames(tiny_videos["normal"], fps=cfg["cache"]["fps"], short_side=cfg["cache"]["short_side"])
+    C.write_clip(cid, ref, cfg)
+    return cfg, len(ref)
+
+
+def test_read_idx_content(tiny_videos, tmp_path):
+    cfg, _ = _one(tiny_videos, tmp_path)
+    full = C.read_clip("c1", cfg)
+    np.testing.assert_array_equal(C.read_clip("c1", cfg, idx=[5, 0, 5]), full[[5, 0, 5]])
+
+
+def test_read_idx_out_of_range(tiny_videos, tmp_path):
+    import pytest
+    cfg, n = _one(tiny_videos, tmp_path)
+    for bad in ([n], [-1]):
+        with pytest.raises(ValueError):
+            C.read_clip("c1", cfg, idx=bad)
+
+
+def test_stale_tmp_cleaned(tiny_videos, tmp_path):
+    cfg = _cfg(tmp_path)
+    d = C.cache_dir(cfg)
+    d.mkdir(parents=True)
+    stale = d / "a.npz.tmp"
+    stale.write_bytes(b"junk")
+    m = pd.DataFrame([("a", tiny_videos["normal"], "")], columns=["clip_id", "path", "exclusion"])
+    C.build_cache(m, cfg, workers=1)
+    assert not stale.exists() and (d / "a.npz").exists()
+
+
+def test_interrupted_write_leaves_no_npz(tiny_videos, tmp_path, monkeypatch):
+    import pytest
+    cfg = _cfg(tmp_path)
+    ref = decode_frames(tiny_videos["normal"], fps=15, short_side=256)
+
+    def boom(*a, **k):
+        raise OSError("interrupted")
+    monkeypatch.setattr(C.os, "replace", boom)
+    with pytest.raises(OSError):
+        C.write_clip("a", ref, cfg)
+    assert not (C.cache_dir(cfg) / "a.npz").exists()
+    monkeypatch.undo()
+    m = pd.DataFrame([("a", tiny_videos["normal"], "")], columns=["clip_id", "path", "exclusion"])
+    C.build_cache(m, cfg, workers=1)
+    assert (C.cache_dir(cfg) / "a.npz").exists()

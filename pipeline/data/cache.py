@@ -53,10 +53,14 @@ def write_clip(clip_id, frames: np.ndarray, cfg) -> Path:
 
 
 def read_clip(clip_id, cfg, idx=None) -> np.ndarray:
+    """Decode frames `idx` (any order, repeats allowed) or all frames. Only the requested
+    JPEGs are decoded, but np.load of an npz member reads the whole `data` blob."""
     with np.load(_file(clip_id, cfg)) as z:
         data, offsets, shape = z["data"], z["offsets"], z["shape"]
     n, h, w, _ = (int(s) for s in shape)
-    sel = range(n) if idx is None else [int(i) for i in np.asarray(idx).reshape(-1)]
+    sel = np.arange(n, dtype=np.int64) if idx is None else np.asarray(idx, dtype=np.int64).reshape(-1)
+    if sel.size and (sel.min() < 0 or sel.max() >= n):
+        raise ValueError(f"frame index out of range for {clip_id}: {sel.tolist()} (n={n})")
     out = np.empty((len(sel), h, w, 3), dtype=np.uint8)
     for k, i in enumerate(sel):
         blob = data[offsets[i]:offsets[i + 1]].tobytes()
