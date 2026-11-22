@@ -43,6 +43,34 @@ Chosen by Claude (the owner handed over the how). The paper's planned contributi
    - latency and size on laptop CPU and GPU, plus FP16, INT8 and ONNX versions
    - window-level false-alarm rate on long non-violent footage
 
+**Revision after the literature check (2026-11-23, see `docs/literature.md`):**
+- Lead with contribution 2, then 1. Contribution 2 has no prior quantification we could find.
+- Contribution 1 claims only:
+  - the source-level RWF-2000 ↔ SFD overlap, which we found unreported
+  - a grouped protocol spanning all three datasets
+  - the released manifests
+
+  It does not claim that "leakage exists": Cheng 2020 and Veltmeijer 2024 already discuss same-source
+  leakage.
+- Contribution 3 is **not** a new architecture. Its closest prior work is Kang et al. 2021
+  (MobileNetV3/EfficientNet-B0 + frame-difference attention + temporal attention). Others cover TSM
+  (Zhang 2022) and difference streams (Islam 2021). Describe MotionLite as a "fully ablated lightweight
+  model evaluated under a leakage-controlled protocol", and cite Kang 2021 as its basis. Re-evaluating
+  that family under the clean protocol is itself useful evidence.
+- Contribution 4 claims the coverage that is new:
+  - SFD and AIRTLab in leave-one-dataset-out tests
+  - overlap-removed splits
+  - calibration, false alarms per hour and measured latency
+
+  Cross-dataset testing as such is already published.
+- Reconcile with FuseMamba-VD (Senadeera 2025), which found no SFD-test near-duplicates against RWF
+  training clips. Shared YouTube IDs may be different moments of the same video. Task 4's frame-hash
+  check must report how many shared-source clip pairs are visual near-duplicates versus only the same
+  source. The paper reports both numbers and treats same-source as leakage of scene, people and
+  camera, not of identical frames.
+- Do not quote "about 90%+" as the bar. Lightweight models under stated protocols report about 82–90%
+  on RWF.
+
 Anti-goals:
 - claiming state of the art without matched protocols
 - any number tuned on test data
