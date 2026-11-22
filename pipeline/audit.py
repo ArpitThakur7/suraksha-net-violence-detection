@@ -11,10 +11,12 @@ def main(argv=None) -> int:
     ap.add_argument("--config", default="pipeline/configs/base.yaml")
     ap.add_argument("--override", action="append", default=[])
     a = ap.parse_args(argv)
+    if a.groups:
+        from pipeline.data.groups import run_groups
+        print(run_groups())
+        return 0
     df = build_manifest(load_config(a.config, a.override))
     print(df.groupby(["dataset", "original_split", "label"]).size().to_string())
     print("exclusion counts:")
     print(df.exclusion.replace("", "(kept)").value_counts().to_string())
-    if a.groups:
-        print("groups: not implemented yet")
     return 0
