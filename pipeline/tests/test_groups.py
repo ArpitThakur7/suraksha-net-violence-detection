@@ -5,7 +5,10 @@ import numpy as np
 import pandas as pd
 from PIL import Image
 
-from pipeline.data.groups import (assign_global_groups, near_duplicate_pairs, phash)
+import pytest
+
+from pipeline.data.groups import (assign_global_groups, check_avd_split, check_failures,
+                                  near_duplicate_pairs, phash)
 
 
 def test_phash_identical_and_different():
@@ -81,3 +84,30 @@ def test_avd_internal_edges_ignored(tmp_path):
     g = assign_global_groups(m, pairs)
     assert g[0] != g[1]
     assert g[2] == g[3]
+
+
+def test_avd_split_check_raises():
+    m = pd.DataFrame(dict(clip_id=["a", "b"], dataset=["avd", "avd"], original_split=["train", "test"],
+                          global_group=["avd:0:1", "avd:0:1"], exclusion=["", ""]))
+    with pytest.raises(ValueError, match="avd:0:1"):
+        check_avd_split(m)
+    m["original_split"] = "train"
+    check_avd_split(m)
+
+
+def test_failure_threshold():
+    check_failures([("a", "x")], 200)
+    with pytest.raises(RuntimeError):
+        check_failures([("a", "x"), ("b", "y")], 100)
+
+
+@pytest.mark.parametrize("bits,verdict,merged", [(8, "same_scene", True), (8, "", False),
+                                                 (5, "different", False), (5, "", True)])
+def test_manual_verdicts(bits, verdict, merged):
+    m = pd.DataFrame(dict(clip_id=["a", "b"], path=["", ""], source_id=["rwf:a", "sfd:b"],
+                          dataset=["rwf", "sfd"], exclusion=["", ""], dup_of=["", ""]))
+    sigs = {"a": np.zeros(8, np.uint64), "b": np.full(8, (1 << bits) - 1, np.uint64)}
+    v = pd.DataFrame(dict(clip_a=["b"], clip_b=["a"], verdict=[verdict])) if verdict else None
+    p = near_duplicate_pairs(m, sigs=sigs, verdicts=v)
+    g = assign_global_groups(m, p)
+    assert (g[0] == g[1]) == merged

@@ -19,7 +19,8 @@ BORDERLINE = 10   # upper bound of the borderline band
 
 
 def phash(img: np.ndarray) -> int:
-    """64-bit pHash: gray -> 32x32 -> 2D DCT -> 8x8 low band without DC, vs median."""
+    """pHash: gray -> 32x32 -> 2D DCT -> 8x8 low band without the DC term, vs median.
+    Yields 63 significant bits (DC dropped), stored in an int < 2**63."""
     im = Image.fromarray(np.asarray(img, dtype=np.uint8))
     g = np.asarray(im.convert("L").resize((32, 32), Image.BILINEAR, reducing_gap=None), dtype=np.float64)
     d = dct(dct(g, axis=0, norm="ortho"), axis=1, norm="ortho")[:8, :8].ravel()
@@ -73,7 +74,10 @@ def signature_distance(sa: np.ndarray, sb: np.ndarray) -> float:
     return float((h.min(1).mean() + h.min(0).mean()) / 2)
 
 
-def load_signatures(manifest: pd.DataFrame, cache_path=None, root=ROOT, workers: int = 6) -> dict:
+def load_signatures(manifest: pd.DataFrame, cache_path=None, root=ROOT, workers: int = 6,
+                    failures: list | None = None) -> dict:
+    """Cached clip signatures. Clips that fail to decode are skipped, warned about and appended
+    to `failures` as (clip_id, error)."""
     cache_path = Path(cache_path) if cache_path else WORK / "manifest" / "signatures.npz"
     sigs: dict[str, np.ndarray] = {}
     if cache_path.exists():
@@ -84,12 +88,16 @@ def load_signatures(manifest: pd.DataFrame, cache_path=None, root=ROOT, workers:
     def one(t):
         try:
             return t[0], clip_signature(Path(root) / t[1])
-        except Exception:
-            return t[0], None
+        except Exception as e:
+            return t[0], f"{type(e).__name__}: {e}"[:200]
     if todo:
         with ThreadPoolExecutor(workers) as ex:
             for k, (cid, s) in enumerate(ex.map(one, todo)):
-                if s is not None:
+                if isinstance(s, str):
+                    print(f"WARNING: signature failed for {cid}: {s}", flush=True)
+                    if failures is not None:
+                        failures.append((cid, s))
+                else:
                     sigs[cid] = s
                 if (k + 1) % 200 == 0:
                     print(f"signatures {k + 1}/{len(todo)}", flush=True)
@@ -104,9 +112,31 @@ def _active(manifest: pd.DataFrame) -> pd.DataFrame:
     return manifest
 
 
+def check_failures(failures, n_active: int, max_frac: float = 0.01) -> None:
+    if len(failures) > max_frac * n_active:
+        raise RuntimeError(f"{len(failures)} of {n_active} clips failed signature extraction "
+                           f"(> {max_frac:.0%}); first: {failures[:3]}")
+
+
+def check_avd_split(m: pd.DataFrame) -> None:
+    """No global group made only of AIRTLab clips may span more than one original_split."""
+    act = _active(m)
+    for gname, g in act.groupby("global_group"):
+        if (g.dataset == "avd").all() and g.original_split.nunique() > 1:
+            raise ValueError(f"avd global_group {gname!r} spans splits {sorted(g.original_split.unique())}")
+
+
+def _read_verdicts(verdicts) -> pd.DataFrame:
+    if verdicts is None:
+        return pd.DataFrame(columns=["clip_a", "clip_b", "verdict"])
+    v = pd.read_csv(verdicts, keep_default_na=False) if isinstance(verdicts, (str, Path)) else verdicts
+    return v[["clip_a", "clip_b", "verdict"]]
+
+
 def near_duplicate_pairs(manifest: pd.DataFrame, max_mean_hamming: float = 10, sigs=None,
-                         cache_path=None, root=ROOT) -> pd.DataFrame:
-    """Pairs of non-excluded clips from different source_ids with distance <= max_mean_hamming."""
+                         cache_path=None, root=ROOT, verdicts=None) -> pd.DataFrame:
+    """Pairs of non-excluded clips from different source_ids with distance <= max_mean_hamming.
+    `confirmed` = distance <= 6, or manual verdict same_scene; verdict "different" forces False."""
     # byte-identical copies share a clip_id: compare each content once (they are unioned by clip_id)
     m = _active(manifest).drop_duplicates("clip_id").reset_index(drop=True)
     if sigs is None:
@@ -125,7 +155,12 @@ def near_duplicate_pairs(manifest: pd.DataFrame, max_mean_hamming: float = 10, s
             rows.append((ids[i], ids[i + 1 + j], float(d[j])))
     p = pd.DataFrame(rows, columns=["clip_a", "clip_b", "distance"])
     p = p.sort_values("distance", kind="stable").reset_index(drop=True)
-    p["confirmed"] = p.distance <= NEAR_DUP
+    vd: dict = {}
+    for r in _read_verdicts(verdicts).itertuples():
+        vd[frozenset((r.clip_a, r.clip_b))] = r.verdict
+    p["manual_verdict"] = [vd.get(frozenset(t), "") for t in zip(p.clip_a, p.clip_b)]
+    p["auto_confirmed"] = p.distance <= NEAR_DUP
+    p["confirmed"] = (p.auto_confirmed | (p.manual_verdict == "same_scene")) & (p.manual_verdict != "different")
     ds = m.set_index("clip_id").dataset if "dataset" in m else None
     avd = (pd.Series(p.clip_a.map(ds) == "avd") & (p.clip_b.map(ds) == "avd")) if ds is not None         else pd.Series(False, index=p.index)
     p["used_for_grouping"] = p.confirmed & ~avd
@@ -197,9 +232,9 @@ def contact_sheet(pairs: pd.DataFrame, manifest: pd.DataFrame, out_path, k: int 
     plt.close(fig)
 
 
-def write_groups_report(m: pd.DataFrame, pairs: pd.DataFrame, sigs: dict, path) -> dict:
+def write_groups_report(m: pd.DataFrame, pairs: pd.DataFrame, sigs: dict, path, failures=()) -> dict:
     act = m[m.exclusion.fillna("") == ""]
-    g = m.groupby("global_group")
+    g = act.groupby("global_group")
     ng = g.ngroups
     multi_ds = int((g.dataset.nunique() > 1).sum())
     multi_sp = int((g.original_split.nunique() > 1).sum())
@@ -221,7 +256,8 @@ def write_groups_report(m: pd.DataFrame, pairs: pd.DataFrame, sigs: dict, path) 
     L = ["# Global groups report", "", f"Clips: {len(m)} ({len(act)} non-excluded)", "",
          f"- global groups: {ng}", f"- groups spanning >1 dataset: {multi_ds}",
          f"- groups spanning >1 original split: {multi_sp}",
-         f"- clips with shared_source: {int(m.shared_source.sum())}", "",
+         f"- clips with shared_source (non-excluded): {int(act.shared_source.sum())}",
+         "- avd split check: PASSED (no avd-only global group spans more than one original_split)", "",
          "## Shared-source clip pairs (same source_id, different datasets)", "",
          f"- shared source_ids: {len(shared)}; RWF clips with a shared source: {n_rwf}",
          f"- clip pairs: {len(rows)}",
@@ -251,6 +287,17 @@ def write_groups_report(m: pd.DataFrame, pairs: pd.DataFrame, sigs: dict, path) 
     da, db = pairs.clip_a.map(info2.dataset), pairs.clip_b.map(info2.dataset)
     key = pd.Series(["-".join(sorted(t)) for t in zip(da, db)], index=pairs.index)
     anyavd = (da == "avd") | (db == "avd")
+    n_man = int((pairs.manual_verdict == "same_scene").sum())
+    n_auto = int((pairs.auto_confirmed & (pairs.manual_verdict != "different")).sum())
+    n_forced = int((pairs.manual_verdict == "different").sum())
+    n_used = int(pairs.used_for_grouping.sum())
+    L += ["", "## Confirmation provenance", "",
+          f"- confirmed automatically (distance <= {NEAR_DUP}): {n_auto}",
+          f"- confirmed by manual verdict (same_scene): {n_man}",
+          f"- manual verdict 'different' (forced unconfirmed): {n_forced}",
+          f"- pairs used for grouping (after avd_same_room exclusion): {n_used}"]
+    L += ["", "## Signature failures", "", f"Count: {len(failures)}"]
+    L += [f"- {c}: {e}" for c, e in failures]
     L += ["", "## Near-duplicate pairs by dataset pair", "",
           "AIRTLab (avd) pairs where both clips are avd are NOT used for grouping (reason avd_same_room): "
           "AIRTLab is a single-room staged dataset, so different staged events look alike to pHash; "
@@ -281,11 +328,17 @@ def run_groups(manifest_path=None, root=ROOT) -> dict:
     out = mp.parent
     m = pd.read_csv(mp, keep_default_na=False, dtype={"exclusion": str, "dup_of": str, "error": str})
     m = m.drop(columns=[c for c in ("global_group", "shared_source") if c in m])
-    sigs = load_signatures(_active(m), out / "signatures.npz", root)
-    pairs = near_duplicate_pairs(m, BORDERLINE, sigs=sigs)
+    failures: list = []
+    act = _active(m)
+    sigs = load_signatures(act, out / "signatures.npz", root, failures=failures)
+    check_failures(failures, act.clip_id.nunique())
+    vp = out / "near_duplicate_verdicts.csv"
+    pairs = near_duplicate_pairs(m, BORDERLINE, sigs=sigs, verdicts=vp if vp.exists() else None)
     pairs.to_csv(out / "near_duplicates.csv", index=False)
     contact_sheet(pairs, m, out / "near_duplicates_sheet.png", root=root)
     m["global_group"] = assign_global_groups(m, pairs)
-    m["shared_source"] = m.groupby("global_group").dataset.transform("nunique") > 1
+    check_avd_split(m)
+    span = _active(m).groupby("global_group").dataset.nunique() > 1
+    m["shared_source"] = m.global_group.map(span).fillna(False).astype(bool)
     m.to_csv(mp, index=False)
-    return write_groups_report(m, pairs, sigs, out / "groups_report.md")
+    return write_groups_report(m, pairs, sigs, out / "groups_report.md", failures=failures)

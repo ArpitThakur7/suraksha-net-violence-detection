@@ -2,10 +2,11 @@
 
 Clips: 2650 (2645 non-excluded)
 
-- global groups: 1129
-- groups spanning >1 dataset: 13
+- global groups: 1122
+- groups spanning >1 dataset: 14
 - groups spanning >1 original split: 15
-- clips with shared_source: 174
+- clips with shared_source (non-excluded): 179
+- avd split check: PASSED (no avd-only global group spans more than one original_split)
 
 ## Shared-source clip pairs (same source_id, different datasets)
 
@@ -32,7 +33,7 @@ Minimum pairwise pHash distance per shared source_id:
 
 ## Near-duplicate pairs across different source_ids
 
-Total pairs <= 10: 814; confirmed (<= 6): 104; borderline unconfirmed: 710. Borderline pairs need human inspection of near_duplicates_sheet.png.
+Total pairs <= 10: 814; confirmed (<= 6): 137; borderline unconfirmed: 677. Borderline pairs need human inspection of near_duplicates_sheet.png.
 
 Top 40 by distance (smallest first):
 
@@ -79,6 +80,17 @@ Top 40 by distance (smallest first):
 | 469c9fb0 | avd/train/0 | 6596ad19 | avd/validation/0 | 4.38 | True |
 | 3eec4b74 | rwf/train/1 | d7ccc5ad | rwf/train/1 | 4.38 | True |
 
+## Confirmation provenance
+
+- confirmed automatically (distance <= 6): 104
+- confirmed by manual verdict (same_scene): 33
+- manual verdict 'different' (forced unconfirmed): 1
+- pairs used for grouping (after avd_same_room exclusion): 88
+
+## Signature failures
+
+Count: 0
+
 ## Near-duplicate pairs by dataset pair
 
 AIRTLab (avd) pairs where both clips are avd are NOT used for grouping (reason avd_same_room): AIRTLab is a single-room staged dataset, so different staged events look alike to pHash; the publisher scene ids (source_id) are authoritative.
@@ -86,14 +98,14 @@ AIRTLab (avd) pairs where both clips are avd are NOT used for grouping (reason a
 | dataset pair | confirmed (<=6) | borderline (7-10) |
 |---|---|---|
 | avd-avd | 49 | 676 |
-| rwf-rwf | 38 | 19 |
-| rwf-sfd | 16 | 14 |
-| sfd-sfd | 1 | 1 |
+| rwf-rwf | 56 | 1 |
+| rwf-sfd | 30 | 0 |
+| sfd-sfd | 2 | 0 |
 | any avd-cross (avd with rwf/sfd) | 0 | 0 |
 
 ## RWF-SFD confirmed pairs with different source_ids (cross-source re-uploads)
 
-Count: 16
+Count: 30
 
 | clip_a | a (dataset/split/label/source) | clip_b | b (dataset/split/label/source) | distance |
 |---|---|---|---|---|
@@ -113,3 +125,17 @@ Count: 16
 | e9fa4053 | rwf/train/0/yt:mRqg-WXiR7Q | fa621bb9 | sfd/train/1/yt:jQeOqXpcKqg | 5.00 |
 | 9957356b | rwf/train/0/yt:C4SQF-UZzkA | ff49c710 | sfd/validation/1/yt:Wwu20e9pfxg | 5.88 |
 | 3f9cc7f6 | rwf/train/1/yt:Q1ycSrzoM2c | ac57ebaf | sfd/train/0/yt:jQeOqXpcKqg | 6.00 |
+| 84922de2 | rwf/train/0/yt:1tU4kxa51vw | 43a1b427 | sfd/train/0/yt:3uO1UUh5C-U | 6.25 |
+| 72d9d7e5 | rwf/train/0/yt:WHNtrI7MEUg | 37c87f0b | sfd/train/1/yt:IZjLv7alWTk | 6.88 |
+| 480bff59 | rwf/train/0/yt:C4SQF-UZzkA | dcebfc45 | sfd/validation/0/yt:Wwu20e9pfxg | 7.00 |
+| 7303e123 | rwf/train/0/yt:WHNtrI7MEUg | 5ee32854 | sfd/train/1/yt:IZjLv7alWTk | 7.12 |
+| 31159d5c | rwf/train/1/yt:1tU4kxa51vw | e01da1a0 | sfd/train/1/yt:3uO1UUh5C-U | 7.50 |
+| be8ac08b | rwf/train/0/yt:1tU4kxa51vw | 43a1b427 | sfd/train/0/yt:3uO1UUh5C-U | 7.62 |
+| af8653d3 | rwf/train/1/yt:mVTcBPrjh-E | ef7759c8 | sfd/train/0/yt:IZjLv7alWTk | 8.00 |
+| 6741ac05 | rwf/train/1/yt:C4SQF-UZzkA | 50b8637e | sfd/validation/0/yt:Wwu20e9pfxg | 8.62 |
+| 31159d5c | rwf/train/1/yt:1tU4kxa51vw | 43a1b427 | sfd/train/0/yt:3uO1UUh5C-U | 8.88 |
+| 72d9d7e5 | rwf/train/0/yt:WHNtrI7MEUg | 5ee32854 | sfd/train/1/yt:IZjLv7alWTk | 9.00 |
+| be8ac08b | rwf/train/0/yt:1tU4kxa51vw | e01da1a0 | sfd/train/1/yt:3uO1UUh5C-U | 9.12 |
+| 84922de2 | rwf/train/0/yt:1tU4kxa51vw | e01da1a0 | sfd/train/1/yt:3uO1UUh5C-U | 9.50 |
+| 31159d5c | rwf/train/1/yt:1tU4kxa51vw | 973722db | sfd/train/1/yt:3uO1UUh5C-U | 9.75 |
+| 5a2b6663 | rwf/train/0/yt:C4SQF-UZzkA | 9f3ab9ec | sfd/validation/1/yt:Wwu20e9pfxg | 9.75 |
