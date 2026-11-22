@@ -18,3 +18,5 @@ work/runs/**/*.pt
 work/release/
 .superpowers/
 .claude/session-memory/
+work/runs/
+work/.pytest_tmp/

@@ -1,0 +1,46 @@
+paths:
+  work: work
+  datasets: datasets
+  rwf_root: datasets/public/rwf2000/RWF-2000
+  handoff: handoff
+cache:
+  fps: 15
+  short_side: 256
+  jpeg_quality: 90
+clip:
+  T: 16
+  crop: 224
+split:
+  val_frac: 0.15
+  seed: 1337
+  test_source: rwf_official_val
+train:
+  lr: 0.0003
+  weight_decay: 0.05
+  label_smoothing: 0.1
+  warmup_epochs: 2
+  effective_batch: 32
+  workers: 4
+  deterministic: true
+  max_epochs: 40
+  patience: 6
+  selection:
+    metric: val_roc_auc
+    mode: max
+    tie_break: val_loss
+  threshold_grid:
+    start: 0.05
+    stop: 0.95
+    step: 0.01
+  seeds: [0, 1, 2]
+  headline_seeds: [0, 1, 2, 3, 4]
+  headline_models: [M3, M4, M5]
+  headline_protocols: [P2, P3]
+eval:
+  threshold_metric: f1
+  bootstrap_resamples: 1000
+  ece_bins: 15
+bench:
+  warmup_iters: 10
+  iters: 50
+  batch_sizes: [1]
