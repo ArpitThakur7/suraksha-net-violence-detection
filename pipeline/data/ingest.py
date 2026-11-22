@@ -13,7 +13,7 @@ from pipeline.data.video import probe_video
 
 YT_RE = re.compile(r"^[A-Za-z0-9_-]{11}$")
 COLUMNS = ["clip_id", "path", "dataset", "label", "source_id", "original_split", "sha256",
-           "fps", "frames", "width", "height", "duration_s", "error", "exclusion"]
+           "fps", "frames", "width", "height", "duration_s", "error", "exclusion", "dup_of"]
 
 
 def rwf_source_id(filename: str) -> str:
@@ -77,6 +77,27 @@ def _audit_one(row: dict) -> dict:
     return out
 
 
+def mark_duplicates(df: pd.DataFrame) -> pd.DataFrame:
+    """Set `exclusion` and `dup_of`. df must be sorted by path with a RangeIndex.
+    dup_of = clip_id of the first copy (by path) for later copies, else "".
+    duplicate_sha is excluded only when the copy shares original_split with the first copy;
+    cross-split copies are kept."""
+    df = df.copy()
+    excl = pd.Series("", index=df.index)
+    excl[df["frames"] == 0] = "empty"
+    excl[df["error"] != ""] = "decode_error"
+    dup_of = pd.Series("", index=df.index)
+    has = df["sha256"] != ""
+    first = df[has].groupby("sha256").head(1).set_index("sha256")
+    for i in df.index[has & df.duplicated("sha256", keep="first")]:
+        f = first.loc[df.at[i, "sha256"]]
+        dup_of[i] = f["clip_id"]
+        if f["original_split"] == df.at[i, "original_split"] and excl[i] == "":
+            excl[i] = "duplicate_sha"
+    df["exclusion"], df["dup_of"] = excl, dup_of
+    return df
+
+
 def build_manifest(cfg, out_path=None) -> pd.DataFrame:
     rows = _inventory(cfg)
     results, done = [], 0
@@ -89,12 +110,7 @@ def build_manifest(cfg, out_path=None) -> pd.DataFrame:
     df = pd.DataFrame(results)
     df["clip_id"] = df["sha256"].str[:16]
     df = df.sort_values("path").reset_index(drop=True)
-    excl = pd.Series("", index=df.index)
-    excl[df["frames"] == 0] = "empty"
-    excl[df["error"] != ""] = "decode_error"
-    dup = df["sha256"].ne("") & df.duplicated("sha256", keep="first") & (excl == "")
-    excl[dup] = "duplicate_sha"
-    df["exclusion"] = excl
+    df = mark_duplicates(df)
     df = df[COLUMNS]
     out = Path(out_path) if out_path else WORK / "manifest" / "all_clips.csv"
     out.parent.mkdir(parents=True, exist_ok=True)
@@ -115,6 +131,17 @@ def write_report(df: pd.DataFrame, path) -> None:
         L.append("| - | none | 0 |")
     for (d, r), n in ex.groupby(["dataset", "exclusion"]).size().items():
         L.append(f"| {d} | {r} | {n} |")
+    L += ["", "## Exact duplicates", ""]
+    d = df[df.dup_of != ""]
+    pairs, within, cross = [], 0, 0
+    for r in d.itertuples():
+        f = df[df.clip_id == r.dup_of].iloc[0]
+        same = f.original_split == r.original_split
+        within += same
+        cross += not same
+        pairs.append(f"| {f.path} | {r.path} | {r.label} | {f.original_split} / {r.original_split} | {'within-split' if same else 'cross-split'} |")
+    L += [f"Duplicate copies: {len(d)} (within-split {within}, cross-split {cross})", "",
+          "| first copy | duplicate copy | label | original_split (first / dup) | kind |", "|---|---|---|---|---|"] + pairs
     L += ["", "## Per-dataset summaries (non-excluded clips)", ""]
     ok = df[df.exclusion == ""]
     for d, g in ok.groupby("dataset"):

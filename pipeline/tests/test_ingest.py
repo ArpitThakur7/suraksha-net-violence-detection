@@ -34,3 +34,17 @@ def test_probe_bad_file(tmp_path):
     bad.write_bytes(b"not a video")
     p = probe_video(bad)
     assert p["error"] and p["frames"] == 0
+
+
+def test_duplicate_handling():
+    import pandas as pd
+    from pipeline.data.ingest import mark_duplicates
+    df = pd.DataFrame([
+        dict(clip_id="a", path="a", sha256="s1", original_split="train", frames=5, error=""),
+        dict(clip_id="b", path="b", sha256="s1", original_split="train", frames=5, error=""),
+        dict(clip_id="c", path="c", sha256="s1", original_split="val", frames=5, error=""),
+        dict(clip_id="d", path="d", sha256="s2", original_split="val", frames=5, error=""),
+    ])
+    o = mark_duplicates(df)
+    assert o.exclusion.tolist() == ["", "duplicate_sha", "", ""]
+    assert o.dup_of.tolist() == ["", "a", "a", ""]
