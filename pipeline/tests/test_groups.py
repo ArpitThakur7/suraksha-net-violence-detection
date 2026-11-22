@@ -69,3 +69,15 @@ def test_near_dup_detects_reencode(tiny_videos, tmp_path):
     row = p[(p.clip_a == "n") & (p.clip_b == "c") | (p.clip_a == "c") & (p.clip_b == "n")]
     assert len(row) == 1 and row.distance.iloc[0] <= 6
     assert (tmp_path / "sig.npz").exists()
+
+
+def test_avd_internal_edges_ignored(tmp_path):
+    m = pd.DataFrame(dict(
+        clip_id=["v1", "v2", "r1", "s1"], source_id=["avd:0:1", "avd:0:2", "rwf:r", "sfd:s"],
+        dataset=["avd", "avd", "rwf", "sfd"], exclusion=[""] * 4, dup_of=[""] * 4))
+    pairs = pd.DataFrame(dict(clip_a=["v1", "r1"], clip_b=["v2", "s1"], distance=[2.5, 2.0],
+                              confirmed=[True, True]))
+    pairs["used_for_grouping"] = [False, True]
+    g = assign_global_groups(m, pairs)
+    assert g[0] != g[1]
+    assert g[2] == g[3]

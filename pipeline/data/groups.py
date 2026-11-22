@@ -126,6 +126,11 @@ def near_duplicate_pairs(manifest: pd.DataFrame, max_mean_hamming: float = 10, s
     p = pd.DataFrame(rows, columns=["clip_a", "clip_b", "distance"])
     p = p.sort_values("distance", kind="stable").reset_index(drop=True)
     p["confirmed"] = p.distance <= NEAR_DUP
+    ds = m.set_index("clip_id").dataset if "dataset" in m else None
+    avd = (pd.Series(p.clip_a.map(ds) == "avd") & (p.clip_b.map(ds) == "avd")) if ds is not None         else pd.Series(False, index=p.index)
+    p["used_for_grouping"] = p.confirmed & ~avd
+    # AIRTLab (avd): single-room staged dataset, publisher scene ids are authoritative
+    p["reason"] = np.where(avd, "avd_same_room", np.where(p.confirmed, "", "unconfirmed"))
     return p
 
 
@@ -159,7 +164,8 @@ def assign_global_groups(manifest: pd.DataFrame, pairs: pd.DataFrame) -> pd.Seri
             if d and d in sids and c in sids:
                 union(sids[c][0], sids[d][0])
     if len(pairs):
-        for r in pairs[pairs["confirmed"].astype(bool)].itertuples():
+        use = pairs["used_for_grouping"] if "used_for_grouping" in pairs else pairs["confirmed"]
+        for r in pairs[use.astype(bool)].itertuples():
             if r.clip_a in sids and r.clip_b in sids:
                 union(sids[r.clip_a][0], sids[r.clip_b][0])
     out = manifest.source_id.map(find)
@@ -241,6 +247,29 @@ def write_groups_report(m: pd.DataFrame, pairs: pd.DataFrame, sigs: dict, path) 
         a, b = info.loc[p.clip_a], info.loc[p.clip_b]
         L.append(f"| {p.clip_a[:8]} | {a.dataset}/{a.original_split}/{a.label} | {p.clip_b[:8]} | "
                  f"{b.dataset}/{b.original_split}/{b.label} | {p.distance:.2f} | {p.confirmed} |")
+    info2 = m.drop_duplicates("clip_id").set_index("clip_id")
+    da, db = pairs.clip_a.map(info2.dataset), pairs.clip_b.map(info2.dataset)
+    key = pd.Series(["-".join(sorted(t)) for t in zip(da, db)], index=pairs.index)
+    anyavd = (da == "avd") | (db == "avd")
+    L += ["", "## Near-duplicate pairs by dataset pair", "",
+          "AIRTLab (avd) pairs where both clips are avd are NOT used for grouping (reason avd_same_room): "
+          "AIRTLab is a single-room staged dataset, so different staged events look alike to pHash; "
+          "the publisher scene ids (source_id) are authoritative.", "",
+          "| dataset pair | confirmed (<=6) | borderline (7-10) |", "|---|---|---|"]
+    for name, mask in [("avd-avd", key == "avd-avd"), ("rwf-rwf", key == "rwf-rwf"),
+                       ("rwf-sfd", key == "rwf-sfd"), ("sfd-sfd", key == "sfd-sfd"),
+                       ("any avd-cross (avd with rwf/sfd)", anyavd & (key != "avd-avd"))]:
+        L.append(f"| {name} | {int((mask & pairs.confirmed).sum())} | {int((mask & ~pairs.confirmed).sum())} |")
+    rs = pairs[(key == "rwf-sfd") & pairs.confirmed]
+    rs = rs[rs.clip_a.map(info2.source_id) != rs.clip_b.map(info2.source_id)]
+    L += ["", "## RWF-SFD confirmed pairs with different source_ids (cross-source re-uploads)", "",
+          f"Count: {len(rs)}", "",
+          "| clip_a | a (dataset/split/label/source) | clip_b | b (dataset/split/label/source) | distance |",
+          "|---|---|---|---|---|"]
+    for p in rs.itertuples():
+        a, b = info2.loc[p.clip_a], info2.loc[p.clip_b]
+        L.append(f"| {p.clip_a[:8]} | {a.dataset}/{a.original_split}/{a.label}/{a.source_id} | {p.clip_b[:8]} | "
+                 f"{b.dataset}/{b.original_split}/{b.label}/{b.source_id} | {p.distance:.2f} |")
     Path(path).write_text("\n".join(L) + "\n", encoding="utf-8")
     return dict(groups=ng, multi_ds=multi_ds, multi_split=multi_sp, shared_ids=len(shared),
                 rwf_shared_clips=n_rwf, pairs=len(rows), near=n_dup, border=n_bd, source_only=n_src,

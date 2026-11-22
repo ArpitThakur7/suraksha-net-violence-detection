@@ -2,9 +2,9 @@
 
 Clips: 2650 (2645 non-excluded)
 
-- global groups: 1099
+- global groups: 1129
 - groups spanning >1 dataset: 13
-- groups spanning >1 original split: 17
+- groups spanning >1 original split: 15
 - clips with shared_source: 174
 
 ## Shared-source clip pairs (same source_id, different datasets)
@@ -78,3 +78,38 @@ Top 40 by distance (smallest first):
 | d6e21bf5 | avd/train/0 | 6ae7e095 | avd/train/1 | 4.38 | True |
 | 469c9fb0 | avd/train/0 | 6596ad19 | avd/validation/0 | 4.38 | True |
 | 3eec4b74 | rwf/train/1 | d7ccc5ad | rwf/train/1 | 4.38 | True |
+
+## Near-duplicate pairs by dataset pair
+
+AIRTLab (avd) pairs where both clips are avd are NOT used for grouping (reason avd_same_room): AIRTLab is a single-room staged dataset, so different staged events look alike to pHash; the publisher scene ids (source_id) are authoritative.
+
+| dataset pair | confirmed (<=6) | borderline (7-10) |
+|---|---|---|
+| avd-avd | 49 | 676 |
+| rwf-rwf | 38 | 19 |
+| rwf-sfd | 16 | 14 |
+| sfd-sfd | 1 | 1 |
+| any avd-cross (avd with rwf/sfd) | 0 | 0 |
+
+## RWF-SFD confirmed pairs with different source_ids (cross-source re-uploads)
+
+Count: 16
+
+| clip_a | a (dataset/split/label/source) | clip_b | b (dataset/split/label/source) | distance |
+|---|---|---|---|---|
+| 6dcca31f | rwf/train/1/yt:Q1ycSrzoM2c | 7199ab4e | sfd/train/1/yt:jQeOqXpcKqg | 2.50 |
+| a5af27e8 | rwf/train/1/yt:mVTcBPrjh-E | ef7759c8 | sfd/train/0/yt:IZjLv7alWTk | 2.50 |
+| 3cd49ff4 | rwf/train/1/yt:mRqg-WXiR7Q | 7199ab4e | sfd/train/1/yt:jQeOqXpcKqg | 2.62 |
+| 7303e123 | rwf/train/0/yt:WHNtrI7MEUg | 2b7c5577 | sfd/train/0/yt:g0x9-0pOuhw | 2.88 |
+| 3f9cc7f6 | rwf/train/1/yt:Q1ycSrzoM2c | 7199ab4e | sfd/train/1/yt:jQeOqXpcKqg | 3.25 |
+| e9fa4053 | rwf/train/0/yt:mRqg-WXiR7Q | 9201b7e2 | sfd/train/1/yt:jQeOqXpcKqg | 3.25 |
+| 6741ac05 | rwf/train/1/yt:C4SQF-UZzkA | 9f3ab9ec | sfd/validation/1/yt:Wwu20e9pfxg | 3.38 |
+| 3cd49ff4 | rwf/train/1/yt:mRqg-WXiR7Q | ac57ebaf | sfd/train/0/yt:jQeOqXpcKqg | 3.62 |
+| 6dcca31f | rwf/train/1/yt:Q1ycSrzoM2c | ac57ebaf | sfd/train/0/yt:jQeOqXpcKqg | 3.75 |
+| af8653d3 | rwf/train/1/yt:mVTcBPrjh-E | 33f4a34a | sfd/train/1/yt:IZjLv7alWTk | 4.00 |
+| 7303e123 | rwf/train/0/yt:WHNtrI7MEUg | 37c87f0b | sfd/train/1/yt:IZjLv7alWTk | 4.00 |
+| 5a2b6663 | rwf/train/0/yt:C4SQF-UZzkA | 50b8637e | sfd/validation/0/yt:Wwu20e9pfxg | 4.12 |
+| 72d9d7e5 | rwf/train/0/yt:WHNtrI7MEUg | 2b7c5577 | sfd/train/0/yt:g0x9-0pOuhw | 4.75 |
+| e9fa4053 | rwf/train/0/yt:mRqg-WXiR7Q | fa621bb9 | sfd/train/1/yt:jQeOqXpcKqg | 5.00 |
+| 9957356b | rwf/train/0/yt:C4SQF-UZzkA | ff49c710 | sfd/validation/1/yt:Wwu20e9pfxg | 5.88 |
+| 3f9cc7f6 | rwf/train/1/yt:Q1ycSrzoM2c | ac57ebaf | sfd/train/0/yt:jQeOqXpcKqg | 6.00 |
