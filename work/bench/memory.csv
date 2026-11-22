@@ -1,0 +1,25 @@
+model,batch,ok,peak_mb,seconds,T,crop,gpu,cap_mb
+cnn_lstm,2,True,488.5,0.897,16,224,NVIDIA GeForce RTX 4050 Laptop GPU,5080.0
+cnn_lstm,4,True,872.2,0.146,16,224,NVIDIA GeForce RTX 4050 Laptop GPU,5080.0
+cnn_lstm,8,True,1645.5,0.234,16,224,NVIDIA GeForce RTX 4050 Laptop GPU,5080.0
+cnn_lstm,16,True,3191.8,0.398,16,224,NVIDIA GeForce RTX 4050 Laptop GPU,5080.0
+mnv3_tsm,2,True,742.9,0.291,16,224,NVIDIA GeForce RTX 4050 Laptop GPU,5080.0
+mnv3_tsm,4,True,1442.5,0.156,16,224,NVIDIA GeForce RTX 4050 Laptop GPU,5080.0
+mnv3_tsm,8,True,2855.4,0.22,16,224,NVIDIA GeForce RTX 4050 Laptop GPU,5080.0
+mnv3_tsm,16,False,4990.1,,16,224,NVIDIA GeForce RTX 4050 Laptop GPU,5080.0
+r2plus1d,2,True,2180.9,0.316,16,224,NVIDIA GeForce RTX 4050 Laptop GPU,5080.0
+r2plus1d,4,True,4108.9,0.628,16,224,NVIDIA GeForce RTX 4050 Laptop GPU,5080.0
+r2plus1d,8,False,4743.6,,16,224,NVIDIA GeForce RTX 4050 Laptop GPU,5080.0
+r2plus1d,16,False,4242.4,,16,224,NVIDIA GeForce RTX 4050 Laptop GPU,5080.0
+mvit_s,2,True,2537.6,0.458,16,224,NVIDIA GeForce RTX 4050 Laptop GPU,5080.0
+mvit_s,4,True,4818.3,0.604,16,224,NVIDIA GeForce RTX 4050 Laptop GPU,5080.0
+mvit_s,8,False,4963.8,,16,224,NVIDIA GeForce RTX 4050 Laptop GPU,5080.0
+mvit_s,16,False,4581.4,,16,224,NVIDIA GeForce RTX 4050 Laptop GPU,5080.0
+motionlite,2,True,1136.4,0.154,16,224,NVIDIA GeForce RTX 4050 Laptop GPU,5080.0
+motionlite,4,True,2230.9,0.18,16,224,NVIDIA GeForce RTX 4050 Laptop GPU,5080.0
+motionlite,8,True,4434.0,0.353,16,224,NVIDIA GeForce RTX 4050 Laptop GPU,5080.0
+motionlite,16,False,5026.3,,16,224,NVIDIA GeForce RTX 4050 Laptop GPU,5080.0
+motionlite[effb0],2,True,2373.2,0.198,16,224,NVIDIA GeForce RTX 4050 Laptop GPU,5080.0
+motionlite[effb0],4,True,4700.0,0.329,16,224,NVIDIA GeForce RTX 4050 Laptop GPU,5080.0
+motionlite[effb0],8,False,4938.1,,16,224,NVIDIA GeForce RTX 4050 Laptop GPU,5080.0
+motionlite[effb0],16,False,4877.8,,16,224,NVIDIA GeForce RTX 4050 Laptop GPU,5080.0
