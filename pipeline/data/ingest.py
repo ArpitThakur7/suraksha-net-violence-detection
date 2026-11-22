@@ -74,6 +74,8 @@ def _audit_one(row: dict) -> dict:
     if pr["error"] and not out["error"]:
         out["error"] = pr["error"]
     out.update({k: pr[k] for k in ("fps", "frames", "width", "height", "duration_s")})
+    out["clip_id"] = (out["sha256"][:16] if out["sha256"]
+                      else "err-" + hashlib.sha1(row["path"].encode()).hexdigest()[:12])
     return out
 
 
@@ -108,7 +110,6 @@ def build_manifest(cfg, out_path=None) -> pd.DataFrame:
             if done % 200 == 0:
                 print(f"audited {done}/{len(rows)}", flush=True)
     df = pd.DataFrame(results)
-    df["clip_id"] = df["sha256"].str[:16]
     df = df.sort_values("path").reset_index(drop=True)
     df = mark_duplicates(df)
     df = df[COLUMNS]
