@@ -1,4 +1,4 @@
-"""Benchmarks. `python -m pipeline bench --memory`: GPU memory pilot (one AMP train step per model
+"""Benchmarks. `python -m pipeline bench --memory`: GPU memory pilot (3 AMP train steps per model
 and batch size) -> work/bench/memory.csv, used to set train.batch / grad accumulation in grid.yaml."""
 from __future__ import annotations
 
@@ -25,29 +25,52 @@ MEMORY_MODELS = (
 )
 
 
-def _train_step(name, kw, batch, T, crop, dev):
+STEPS = 3          # step 1 warms up (allocates AdamW state); peak is taken over steps 2..STEPS
+STEPS_MEASURED = STEPS - 1
+
+
+def _is_oom(e: BaseException) -> bool:
+    if isinstance(e, torch.cuda.OutOfMemoryError):
+        return True
+    msg = str(e)
+    return isinstance(e, RuntimeError) and ("out of memory" in msg or "ALLOC_FAILED" in msg)
+
+
+def _train_steps(name, kw, batch, T, crop, dev):
+    """STEPS AdamW steps under fp16 AMP. Returns (peak MB over steps 2..STEPS, mean s/step there).
+    Measuring after step 1 means exp_avg/exp_avg_sq are resident, i.e. steady-state memory."""
     from pipeline.models import build_model
     model = build_model(name, pretrained=False, T=T, **kw).to(dev).train()
     opt = torch.optim.AdamW(model.parameters(), lr=3e-4, weight_decay=0.05)
-    scaler = torch.amp.GradScaler("cuda")
+    scaler = torch.amp.GradScaler("cuda", init_scale=2.0 ** 10)  # avoid a skipped first step
     x = torch.randn(batch, T, 3, crop, crop, device=dev)
     y = torch.randint(0, 2, (batch,), device=dev)
+
+    def step():
+        with torch.autocast(device_type="cuda", dtype=torch.float16):
+            loss = torch.nn.functional.cross_entropy(model(x), y)
+        opt.zero_grad(set_to_none=True)
+        scaler.scale(loss).backward()
+        scaler.step(opt)
+        scaler.update()
+
+    step()
     torch.cuda.synchronize()
+    assert len(opt.state) > 0, "optimizer state empty after step 1 (GradScaler skipped the step)"
+    torch.cuda.reset_peak_memory_stats(dev)
     t0 = time.perf_counter()
-    with torch.autocast(device_type="cuda", dtype=torch.float16):
-        loss = torch.nn.functional.cross_entropy(model(x), y)
-    opt.zero_grad(set_to_none=True)
-    scaler.scale(loss).backward()
-    scaler.step(opt)
-    scaler.update()
+    for _ in range(STEPS_MEASURED):
+        step()
     torch.cuda.synchronize()
-    return time.perf_counter() - t0
+    secs = (time.perf_counter() - t0) / STEPS_MEASURED
+    return torch.cuda.max_memory_allocated(dev) / 2**20, secs
 
 
 def memory_pilot(cfg: dict) -> pd.DataFrame:
-    """For each model and batch in {2,4,8,16}: one forward+backward+AdamW step under fp16 AMP on
-    random [B,T,3,crop,crop] input. Records peak torch.cuda.max_memory_allocated (weights + grads
-    + optimizer state + activations) and ok/OOM. The caching allocator is capped at the VRAM free
+    """For each model and batch in {2,4,8,16}: 3 forward+backward+AdamW steps under fp16 AMP on
+    random [B,T,3,crop,crop] input. Records the steady-state peak torch.cuda.max_memory_allocated
+    over steps 2-3 (weights + grads + resident AdamW state + activations; `seconds` = mean per
+    step) and ok/OOM. The caching allocator is capped at the VRAM free
     at start, so a run that would spill into Windows shared system memory counts as OOM."""
     if not torch.cuda.is_available():
         raise RuntimeError("memory pilot needs CUDA")
@@ -65,15 +88,17 @@ def memory_pilot(cfg: dict) -> pd.DataFrame:
             torch.cuda.reset_peak_memory_stats(dev)
             ok, secs = True, float("nan")
             try:
-                secs = _train_step(name, kw, batch, T, crop, dev)
-            except torch.cuda.OutOfMemoryError:
+                peak, secs = _train_steps(name, kw, batch, T, crop, dev)
+            except RuntimeError as e:
+                if not _is_oom(e):
+                    raise
                 ok = False
-            peak = torch.cuda.max_memory_allocated(dev) / 2**20
+                peak = torch.cuda.max_memory_allocated(dev) / 2**20  # peak before the failure
             gc.collect()
             torch.cuda.empty_cache()
             rows.append({"model": label, "batch": batch, "ok": ok, "peak_mb": round(peak, 1),
-                         "seconds": round(secs, 3), "T": T, "crop": crop, "gpu": gpu,
-                         "cap_mb": round(free / 2**20, 1)})
+                         "seconds": round(secs, 3), "steps_measured": STEPS_MEASURED,
+                         "cap_mb": round(free / 2**20, 1), "T": T, "crop": crop, "gpu": gpu})
             print(f"  {label:18s} b={batch:2d} {'ok ' if ok else 'OOM'} peak={peak:8.1f} MB "
                   f"t={secs:.2f}s")
     df = pd.DataFrame(rows)

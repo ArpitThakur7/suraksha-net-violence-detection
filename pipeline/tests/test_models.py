@@ -10,7 +10,8 @@ from pipeline.models.tsm import TemporalShift, add_tsm, temporal_shift
 
 NAMES = ["cnn_lstm", "mnv3_tsm", "r2plus1d", "mvit_s", "motionlite"]
 IMAGENET = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
-KINETICS = ([0.43216, 0.394666, 0.37645], [0.22803, 0.22145, 0.216989])
+R2P1D_NORM = ([0.43216, 0.394666, 0.37645], [0.22803, 0.22145, 0.216989])
+MVIT_NORM = ([0.45, 0.45, 0.45], [0.225, 0.225, 0.225])
 
 
 def n_params(m):
@@ -35,8 +36,8 @@ def test_model_norm_and_input_constraints():
     assert set(MODEL_NORM) == set(NAMES)
     for n in ("cnn_lstm", "mnv3_tsm", "motionlite"):
         assert MODEL_NORM[n] == IMAGENET
-    for n in ("r2plus1d", "mvit_s"):
-        assert MODEL_NORM[n] == KINETICS
+    assert MODEL_NORM["r2plus1d"] == R2P1D_NORM
+    assert MODEL_NORM["mvit_s"] == MVIT_NORM
     assert MODEL_INPUT["mvit_s"] == {"T": 16, "crop": 224}
     with pytest.raises(ValueError):
         build_model("mvit_s", pretrained=False, T=8)
@@ -122,7 +123,44 @@ def test_param_budget():
 def test_motionlite_backward_reaches_both_streams():
     torch.manual_seed(0)
     m = build_model("motionlite", pretrained=False, T=4).train()
-    loss = m(torch.randn(2, 4, 3, 64, 64)).sum()
-    loss.backward()
+    x = torch.randn(2, 4, 3, 64, 64)
+
+    def grads_ok(part):
+        return any(p.grad is not None and p.grad.abs().sum() > 0 for p in part.parameters())
+
+    m(x).sum().backward()
+    # zero-init proj: at step 0 only its last conv (and the RGB path) receive gradient
+    for part in (m.early, m.proj[-1], m.late, m.attn):
+        assert grads_ok(part)
+    # once the last proj conv is non-zero, gradient reaches the whole diff stream
+    with torch.no_grad():
+        m.proj[-1].weight.normal_(0, 0.1)
+    m.zero_grad(set_to_none=True)
+    m(x).sum().backward()
     for part in (m.early, m.diff_early, m.proj, m.gate, m.late, m.attn):
-        assert any(p.grad is not None and p.grad.abs().sum() > 0 for p in part.parameters())
+        assert grads_ok(part)
+
+
+def test_model_norm_matches_weights_transforms():
+    from torchvision.models.video import MViT_V2_S_Weights, R2Plus1D_18_Weights
+    for name, w in (("r2plus1d", R2Plus1D_18_Weights.KINETICS400_V1),
+                    ("mvit_s", MViT_V2_S_Weights.KINETICS400_V1)):
+        t = w.transforms()  # builds the preset only; no download
+        mean, std = MODEL_NORM[name]
+        assert mean == pytest.approx(list(t.mean)) and std == pytest.approx(list(t.std))
+
+
+def test_motionlite_mid_fusion_is_identity_at_init():
+    torch.manual_seed(0)
+    B, T = 2, 4
+    m = MotionLite(T=T, diff=True, fusion="mid", pretrained=False).eval()
+    x = torch.randn(B, T, 3, 64, 64)
+    with torch.no_grad():
+        d = torch.cat([torch.zeros_like(x[:, :1]), (x[:, 1:] - x[:, :-1]).abs()], 1)
+        assert (m.proj(m.diff_early(d.flatten(0, 1))) == 0).all()
+        y = m(x)
+        # RGB-only path: early -> late -> attention pool -> head
+        f = m.late(m.early(x.flatten(0, 1))).mean((2, 3)).view(B, T, -1)
+        w = torch.softmax(m.attn(f).squeeze(-1), 1)
+        ref = m.fc((w.unsqueeze(-1) * f).sum(1))
+    assert torch.allclose(y, ref, atol=1e-5)

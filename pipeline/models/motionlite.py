@@ -12,7 +12,8 @@ Every component is switchable for the ablation table:
             (the diff copy has its own weights, initialised identically); then
             fused = rgb_feat + sigmoid(g) * proj(diff_feat), proj = 1x1 C->C/2 (BN, ReLU) -> 1x1
             C/2->C bottleneck, g = Conv1x1(concat(rgb_feat, proj(diff_feat))) -> 1 channel
-            (per-pixel gate); features[split:] are shared.
+            (per-pixel gate); features[split:] are shared. The last proj conv is zero-initialised,
+            so at step 0 fused == rgb_feat and the model equals the pretrained RGB path.
 Mid-fusion split (FUSION_SPLIT): stem + the first 5 inverted-residual blocks in both backbones,
 i.e. mnv3 features[:6] (15 blocks total; output 40 ch, stride 8) and effb0 features[:4]
 (stem + stages 1-3 = 5 of 16 MBConv blocks; output 40 ch, stride 8).
@@ -29,6 +30,9 @@ from torch import nn
 from pipeline.models.tsm import add_tsm, backbone_features
 
 FUSION_SPLIT = {"mnv3": 6, "effb0": 4}
+
+
+SPLIT_CHANNELS = 40  # both backbones are 40 ch (stride 8) at FUSION_SPLIT
 
 
 def _out_channels(seq: nn.Module) -> int:
@@ -70,10 +74,13 @@ class MotionLite(nn.Module):
             self.early[0][0] = _widen_stem(self.early[0][0])
         if self.mid:
             c = _out_channels(self.early)
+            assert c == SPLIT_CHANNELS, f"{backbone} split gives {c} ch, expected {SPLIT_CHANNELS}"
             self.diff_early = copy.deepcopy(self.early)
             self.proj = nn.Sequential(
                 nn.Conv2d(c, c // 2, 1, bias=False), nn.BatchNorm2d(c // 2), nn.ReLU(inplace=True),
                 nn.Conv2d(c // 2, c, 1))
+            nn.init.zeros_(self.proj[-1].weight)  # zero-init: diff stream starts as a no-op
+            nn.init.zeros_(self.proj[-1].bias)
             self.gate = nn.Conv2d(2 * c, 1, 1)
         if tsm:
             add_tsm(self, T, fold_div)
