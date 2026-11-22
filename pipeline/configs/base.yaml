@@ -10,6 +10,12 @@ cache:
 clip:
   T: 16
   crop: 224
+  aug:
+    scale: [0.6, 1.0]
+    ratio: [0.75, 1.3333333333333333]
+    hflip: 0.5
+    color_jitter: [0.2, 0.2, 0.2, 0.02]   # brightness, contrast, saturation, hue
+    grayscale: 0.1
 split:
   val_frac: 0.15
   seed: 1337
