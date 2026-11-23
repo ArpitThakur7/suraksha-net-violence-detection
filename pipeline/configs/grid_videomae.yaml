@@ -1,0 +1,14 @@
+# VideoMAE-B partially fine-tuned (last 4 of 12 blocks + head), seed 0 on the headline protocols.
+# lr 5e-5 (transformer fine-tuning); everything else as the other fine-tuned models.
+defaults:
+  - train.keep_last=false
+
+model_setup:
+  videomae_ft: [train.lr=0.00005]
+
+blocks:
+  - name: videomae_ft
+    models: [videomae_ft]
+    protocols: [p2_all, p1_rwf, p3_no_rwf, p3_no_sfd, p3_no_avd]
+    seeds: [0]
+    priority: 1

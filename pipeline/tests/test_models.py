@@ -8,7 +8,7 @@ from pipeline.models import MODEL_INPUT, MODEL_NORM, build_model
 from pipeline.models.motionlite import FUSION_SPLIT, MotionLite
 from pipeline.models.tsm import TemporalShift, add_tsm, temporal_shift
 
-NAMES = ["cnn_lstm", "mnv3_tsm", "r2plus1d", "mvit_s", "motionlite"]
+NAMES = ["cnn_lstm", "mnv3_tsm", "r2plus1d", "mvit_s", "motionlite", "videomae_ft"]
 IMAGENET = ([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
 R2P1D_NORM = ([0.43216, 0.394666, 0.37645], [0.22803, 0.22145, 0.216989])
 MVIT_NORM = ([0.45, 0.45, 0.45], [0.225, 0.225, 0.225])
@@ -21,7 +21,7 @@ def n_params(m):
 @pytest.mark.parametrize("name", NAMES)
 def test_forward_shapes(name):
     torch.manual_seed(0)
-    if name == "mvit_s":  # fixed 16 x 224 x 224 input; batch 1 keeps the CPU test affordable
+    if name in ("mvit_s", "videomae_ft"):  # fixed 16 x 224 x 224 input; batch 1 keeps the CPU test affordable
         B, T, S = 1, 16, 224
     else:
         B, T, S = 2, 16, 112
@@ -164,3 +164,10 @@ def test_motionlite_mid_fusion_is_identity_at_init():
         w = torch.softmax(m.attn(f).squeeze(-1), 1)
         ref = m.fc((w.unsqueeze(-1) * f).sum(1))
     assert torch.allclose(y, ref, atol=1e-5)
+
+
+def test_videomae_ft_freezes_early_blocks():
+    m = build_model("videomae_ft", pretrained=False, frozen_blocks=8)
+    train = [n for n, p in m.named_parameters() if p.requires_grad]
+    assert train and all(n.startswith(("blocks.8", "blocks.9", "blocks.10", "blocks.11", "norm", "head")) for n in train)
+    assert MODEL_INPUT["videomae_ft"] == {"T": 16, "crop": 224}

@@ -30,6 +30,7 @@ MODEL_STYLE = {
     "cnn_lstm": ("#6250d6", "P", "CNN-LSTM (fine-tuned)"),
     "mvit_s": ("#e34948", "X", "MViT-S (fine-tuned)"),
     "motionlite_kd": ("#008300", "*", "MotionLite + VideoMAE distillation (ours)"),
+    "videomae_ft": ("#2a78d6", "h", "VideoMAE-B (partially fine-tuned)"),
 }
 
 
@@ -162,7 +163,7 @@ def fig_tradeoff(summary: pd.DataFrame, speed: pd.DataFrame, out: Path, protocol
     fig, ax = plt.subplots(figsize=(6, 4.2), facecolor=SURFACE)
     _style(ax, plt)
     for r in d.itertuples():
-        arch = "motionlite" if r.model == "motionlite_kd" else r.model
+        arch = {"motionlite_kd": "motionlite", "videomae_ft": "videomae"}.get(r.model, r.model)
         if arch not in sp.index or not np.isfinite(sp.loc[arch, "cuda_ms"]):
             continue
         c, mk, lab = MODEL_STYLE.get(r.model, MODEL_STYLE["videomae"])

@@ -28,10 +28,11 @@ MODEL_NORM: dict[str, tuple[list, list]] = {
     "motionlite": IMAGENET_NORM,
     "r2plus1d": _weights_norm("R2Plus1D_18_Weights", R2PLUS1D_NORM),
     "mvit_s": _weights_norm("MViT_V2_S_Weights", MVIT_NORM),
+    "videomae_ft": IMAGENET_NORM,
 }
 
 # Hard input constraints the trainer validates configs against.
-MODEL_INPUT: dict[str, dict] = {"mvit_s": {"T": 16, "crop": 224}}
+MODEL_INPUT: dict[str, dict] = {"mvit_s": {"T": 16, "crop": 224}, "videomae_ft": {"T": 16, "crop": 224}}
 
 MODEL_NAMES = tuple(MODEL_NORM)
 
@@ -56,4 +57,7 @@ def build_model(name: str, pretrained: bool = True, T: int = 16, **kw) -> nn.Mod
     if name == "motionlite":
         from pipeline.models.motionlite import MotionLite
         return MotionLite(T=T, pretrained=pretrained, **kw)
+    if name == "videomae_ft":
+        from pipeline.models.videomae_ft import VideoMAEFT
+        return VideoMAEFT(pretrained=pretrained, **kw)
     raise ValueError(f"unknown model {name!r}; choose from {', '.join(MODEL_NAMES)}")

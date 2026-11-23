@@ -40,13 +40,14 @@ from pipeline.paths import runs_root
 
 # Per-model micro-batch from the steady-state memory pilot (work/bench/memory.csv, RTX 4050 6 GB).
 DEFAULT_BATCH = {"cnn_lstm": 16, "mnv3_tsm": 8, "motionlite": 8, "motionlite[effb0]": 4,
-                 "r2plus1d": 4, "mvit_s": 2}
+                 "r2plus1d": 4, "mvit_s": 2, "videomae_ft": 4}
 # Model classes, for reading constructor defaults when naming variants.
 _MODEL_CLASS = {"cnn_lstm": ("pipeline.models.cnn_lstm", "CNNLSTM"),
                 "mnv3_tsm": ("pipeline.models.tsm", "MobileNetV3TSM"),
                 "motionlite": ("pipeline.models.motionlite", "MotionLite"),
                 "r2plus1d": ("pipeline.models.video3d", "R2Plus1D"),
-                "mvit_s": ("pipeline.models.video3d", "MViTS")}
+                "mvit_s": ("pipeline.models.video3d", "MViTS"),
+                "videomae_ft": ("pipeline.models.videomae_ft", "VideoMAEFT")}
 HISTORY_COLS = ["epoch", "train_loss", "train_acc", "val_loss", "val_auc", "val_f1@0.5", "lr", "seconds"]
 
 

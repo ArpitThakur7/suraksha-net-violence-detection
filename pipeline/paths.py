@@ -12,6 +12,7 @@ _deps = str(ROOT / ".ml_deps")
 if _deps not in sys.path:
     sys.path.insert(0, _deps)
 os.environ.setdefault("TORCH_HOME", str(ROOT / "pretrained_weights"))
+os.environ.setdefault("HF_HOME", str(ROOT / "pretrained_weights" / "huggingface"))
 
 
 def _resolve(p) -> Path:
