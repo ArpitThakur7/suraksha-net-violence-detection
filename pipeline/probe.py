@@ -262,6 +262,11 @@ def collect(cfg) -> pd.DataFrame:
     files = list(runs_root(cfg).glob("*/*/seed*/test_metrics.json")) + \
         list((work_dir(cfg) / "probe").glob("*/*/test_metrics.json"))
     for f in files:
+        rc = f.parent / "config.json"
+        if rc.exists():  # fine-tuned run: skip smoke / stale runs trained with other settings
+            rec = json.loads(rc.read_text(encoding="utf-8")).get("cfg", {})
+            if rec.get("train", {}).get("max_epochs") != cfg["train"]["max_epochs"]:
+                continue
         r = json.loads(f.read_text(encoding="utf-8"))
         kind = "frozen probe" if str(r["model"]).startswith("probe-") else "fine-tuned"
         model = f.parent.name if kind == "frozen probe" else f.parent.parent.name
