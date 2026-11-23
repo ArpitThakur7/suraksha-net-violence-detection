@@ -41,10 +41,10 @@ def _run(cfg, out, **kw):
     return T.train_run(cfg, "p1_sfd", "cnn_lstm", 0, out, **kw)
 
 
-def _same_weights(a, b):
+def _same_weights(a, b, atol=1e-6):
     assert a.keys() == b.keys()
     for k in a:
-        assert torch.allclose(a[k].float(), b[k].float(), atol=1e-6), k
+        assert torch.allclose(a[k].float(), b[k].float(), atol=atol), k
 
 
 def test_runs_and_writes(setup):
@@ -91,8 +91,8 @@ class _Disconnect(Exception):
     pass
 
 
-def test_resume_after_mid_epoch_kill(setup, monkeypatch):
-    cfg, tmp = setup
+def _kill_mid_epoch_then_resume(cfg, tmp, monkeypatch, atol):
+    """Run A uninterrupted; run B dies mid-epoch 3, then resumes. Returns the two histories."""
     _run(cfg, tmp / "A")
     real = T.build_model
 
@@ -117,10 +117,27 @@ def test_resume_after_mid_epoch_kill(setup, monkeypatch):
     monkeypatch.setattr(T, "build_model", real)
     _run(cfg, tmp / "B")
     load = lambda p: torch.load(p, map_location="cpu", weights_only=False)  # noqa: E731
-    _same_weights(load(tmp / "A" / "last.pt")["model"], load(tmp / "B" / "last.pt")["model"])
-    _same_weights(load(tmp / "A" / "best.pt")["model"], load(tmp / "B" / "best.pt")["model"])
-    pd.testing.assert_frame_equal(pd.read_csv(tmp / "A" / "history.csv").drop(columns="seconds"),
-                                  pd.read_csv(tmp / "B" / "history.csv").drop(columns="seconds"))
+    _same_weights(load(tmp / "A" / "last.pt")["model"], load(tmp / "B" / "last.pt")["model"], atol)
+    _same_weights(load(tmp / "A" / "best.pt")["model"], load(tmp / "B" / "best.pt")["model"], atol)
+    return [pd.read_csv(tmp / r / "history.csv").drop(columns="seconds") for r in ("A", "B")]
+
+
+def test_resume_after_mid_epoch_kill(setup, monkeypatch):
+    cfg, tmp = setup
+    h_a, h_b = _kill_mid_epoch_then_resume(cfg, tmp, monkeypatch, atol=1e-6)
+    pd.testing.assert_frame_equal(h_a, h_b)
+
+
+@pytest.mark.skipif(not torch.cuda.is_available(), reason="needs CUDA")
+def test_resume_after_mid_epoch_kill_cuda(setup, monkeypatch):
+    # The Colab path: last.pt written from a CUDA run (AMP on) must resume on CUDA. CUDA
+    # determinism is warn_only, so weights are compared with a looser tolerance.
+    cfg, tmp = setup
+    cfg["train"]["device"] = "cuda"
+    h_a, h_b = _kill_mid_epoch_then_resume(cfg, tmp, monkeypatch, atol=1e-4)
+    assert len(h_b) == 3
+    pd.testing.assert_frame_equal(h_a, h_b, check_exact=False, atol=1e-4)
+    assert torch.load(tmp / "B" / "best.pt", map_location="cpu", weights_only=False)["threshold"] is not None
 
 
 def test_no_test_rows_loaded(setup, monkeypatch):

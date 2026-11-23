@@ -100,9 +100,9 @@ def _rng_state() -> dict:
 def _set_rng_state(s: dict) -> None:
     random.setstate(s["python"])
     np.random.set_state(s["numpy"])
-    torch.set_rng_state(s["torch"])
+    torch.set_rng_state(s["torch"].cpu())
     if s["cuda"] is not None and torch.cuda.is_available():
-        torch.cuda.set_rng_state_all(s["cuda"])
+        torch.cuda.set_rng_state_all([t.cpu() for t in s["cuda"]])
 
 
 def _lr_lambda(warmup_steps: int, total_steps: int):
@@ -225,7 +225,8 @@ def _fit(cfg, protocol, model, seed, out, model_kw, T, crop, batch, accum) -> di
     best = {"auc": -math.inf, "loss": math.inf, "epoch": 0, "since": 0}
     rows, start = [], 0
     if (out / "last.pt").exists():
-        ck = torch.load(out / "last.pt", map_location=dev, weights_only=False)
+        # CPU load: RNG states must stay CPU ByteTensors; load_state_dict copies onto the device.
+        ck = torch.load(out / "last.pt", map_location="cpu", weights_only=False)
         net.load_state_dict(ck["model"])
         opt.load_state_dict(ck["optimizer"])
         sched.load_state_dict(ck["scheduler"])
