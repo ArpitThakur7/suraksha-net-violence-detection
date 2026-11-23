@@ -1,9 +1,12 @@
 """Benchmarks. `python -m pipeline bench --memory`: GPU memory pilot (3 AMP train steps per model
-and batch size) -> work/bench/memory.csv, used to set train.batch / grad accumulation in grid.yaml."""
+and batch size) -> work/bench/memory.csv, used to set train.batch / grad accumulation in grid.yaml.
+`python -m pipeline bench --epoch`: timing pilot, one real epoch (train + val pass through the
+data loader) per model on p2_all -> work/bench/epoch_seconds.csv, read by `grid --dry-run`."""
 from __future__ import annotations
 
 import argparse
 import gc
+import shutil
 import time
 
 import pandas as pd
@@ -11,7 +14,7 @@ import torch
 
 import pipeline.paths  # noqa: F401
 from pipeline.config import load_config
-from pipeline.paths import ROOT
+from pipeline.paths import ROOT, work_dir
 
 MEMORY_BATCHES = (2, 4, 8, 16)
 # (row label, build_model name, extra kwargs). motionlite[effb0] is the backbone ablation.
@@ -113,15 +116,68 @@ def memory_pilot(cfg: dict) -> pd.DataFrame:
     return df
 
 
+EPOCH_MODELS = ("cnn_lstm", "mnv3_tsm", "r2plus1d", "mvit_s", "motionlite")
+
+
+def epoch_pilot(cfg: dict, protocol: str = "p2_all", models=EPOCH_MODELS) -> pd.DataFrame:
+    """One epoch (train + val) of each model with the grid's default batch, seed 0, under the
+    real loader and trainer, into a scratch run dir that is deleted afterwards. Wall clock of
+    train_run, so it includes loader start-up and model build (a slight overestimate per epoch).
+    Rows are written as they finish, so a crash keeps the models already timed."""
+    from pipeline.train import default_batch, train_run
+    import copy
+    work = work_dir(cfg)
+    out_csv = work / "bench" / "epoch_seconds.csv"
+    out_csv.parent.mkdir(parents=True, exist_ok=True)
+    scratch = work / "bench" / "epoch_pilot"
+    gpu = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "cpu"
+    done = {}
+    if out_csv.exists():
+        prev = pd.read_csv(out_csv)
+        done = {r["model"]: r for r in prev.to_dict("records")}
+    rows = [done[m] for m in models if m in done]
+    for m in models:
+        if m in done:
+            print(f"  {m:12s} {done[m]['seconds_per_epoch']:8.1f} s/epoch (already timed)")
+            continue
+        c = copy.deepcopy(cfg)
+        c["train"]["max_epochs"] = 1
+        c["train"]["keep_last"] = False
+        shutil.rmtree(scratch, ignore_errors=True)
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        t0 = time.perf_counter()
+        train_run(c, protocol, m, 0, scratch / m)
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        secs = time.perf_counter() - t0
+        rows.append({"model": m, "seconds_per_epoch": round(secs, 1), "protocol": protocol,
+                     "batch": int(c["train"].get("batch") or default_batch(m)),
+                     "T": int(c["clip"]["T"]), "crop": int(c["clip"]["crop"]), "gpu": gpu})
+        pd.DataFrame(rows).to_csv(out_csv, index=False)
+        print(f"  {m:12s} {secs:8.1f} s/epoch", flush=True)
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    shutil.rmtree(scratch, ignore_errors=True)
+    print(f"wrote {out_csv}")
+    return pd.DataFrame(rows)
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="pipeline bench")
     ap.add_argument("--memory", action="store_true", help="GPU memory pilot -> work/bench/memory.csv")
+    ap.add_argument("--epoch", action="store_true",
+                    help="epoch timing pilot on p2_all -> work/bench/epoch_seconds.csv")
     ap.add_argument("--config", default="pipeline/configs/base.yaml")
     ap.add_argument("--override", action="append", default=[])
     a = ap.parse_args(argv)
     cfg = load_config(a.config, a.override)
     if a.memory:
         memory_pilot(cfg)
+        return 0
+    if a.epoch:
+        epoch_pilot(cfg)
         return 0
     ap.print_help()
     return 2
