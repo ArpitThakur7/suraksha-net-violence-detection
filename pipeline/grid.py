@@ -42,7 +42,7 @@ EPOCHS_PER_RUN = 15
 REF_PROTOCOL, REF_T, REF_CROP = "p2_all", 16, 224  # conditions of the epoch timing pilot
 # Recorded config values that must match for a DONE run to count as this cell.
 STALE_KEYS = ("train.max_epochs", "train.patience", "train.lr", "train.effective_batch", "clip.T", "clip.crop")
-BUNDLE_EXCLUDE = ("datasets/", "work/", "local_data/")
+BUNDLE_EXCLUDE = ("datasets/", "work/", "demo_app/data/", "demo_app/models/")
 
 
 @dataclass

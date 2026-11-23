@@ -1,0 +1,23 @@
+grid: 26 cells, shard ((0,), 7), runs root E:\Projects\major\work\runs, gpu NVIDIA GeForce RTX 4050 Laptop GPU
+[1/26] run p1_rwf/mnv3_tsm/seed0 (priority 1)
+[p1_rwf/mnv3_tsm/seed0] epoch 1: train_loss 0.6528 val_loss 0.5855 val_auc 0.7964 (91.53s)
+[p1_rwf/mnv3_tsm/seed0] epoch 2: train_loss 0.5181 val_loss 0.5685 val_auc 0.8578 (94.56s)
+[p1_rwf/mnv3_tsm/seed0] epoch 3: train_loss 0.4505 val_loss 0.4591 val_auc 0.8936 (91.83s)
+[p1_rwf/mnv3_tsm/seed0] epoch 4: train_loss 0.4158 val_loss 0.4741 val_auc 0.8569 (88.12s)
+[p1_rwf/mnv3_tsm/seed0] epoch 5: train_loss 0.3792 val_loss 0.5480 val_auc 0.8554 (91.04s)
+[p1_rwf/mnv3_tsm/seed0] epoch 6: train_loss 0.3448 val_loss 0.4721 val_auc 0.8649 (88.11s)
+[p1_rwf/mnv3_tsm/seed0] epoch 7: train_loss 0.3218 val_loss 0.4157 val_auc 0.8989 (87.19s)
+[p1_rwf/mnv3_tsm/seed0] epoch 8: train_loss 0.3107 val_loss 0.4781 val_auc 0.8672 (89.32s)
+[p1_rwf/mnv3_tsm/seed0] epoch 9: train_loss 0.2968 val_loss 0.5012 val_auc 0.8601 (88.47s)
+[p1_rwf/mnv3_tsm/seed0] epoch 10: train_loss 0.2983 val_loss 0.4682 val_auc 0.8661 (93.65s)
+[p1_rwf/mnv3_tsm/seed0] epoch 11: train_loss 0.2713 val_loss 0.4589 val_auc 0.8812 (93.44s)
+[p1_rwf/mnv3_tsm/seed0] epoch 12: train_loss 0.2779 val_loss 0.4839 val_auc 0.8641 (92.47s)
+[p1_rwf/mnv3_tsm/seed0] epoch 13: train_loss 0.2667 val_loss 0.4365 val_auc 0.8852 (93.21s)
+=== Mon Nov 23 15:53:13 IST 2026 switched to full grid on laptop (laptop-only plan) ===
+grid: 162 cells, shard ((0,), 1), runs root E:\Projects\major\work\runs, gpu NVIDIA GeForce RTX 4050 Laptop GPU
+[1/162] run p1_rwf/mnv3_tsm/seed0 (priority 1)
+[1/162] finished p1_rwf/mnv3_tsm/seed0 in 0.3 min
+[2/162] run p1_rwf/r2plus1d/seed0 (priority 1)
+[p1_rwf/r2plus1d/seed0] epoch 1: train_loss 0.6913 val_loss 0.4111 val_auc 0.9281 (260.19s)
+[p1_rwf/r2plus1d/seed0] epoch 2: train_loss 0.5149 val_loss 0.6756 val_auc 0.9049 (248.81s)
+[p1_rwf/r2plus1d/seed0] epoch 3: train_loss 0.5074 val_loss 0.5837 val_auc 0.8867 (249.38s)

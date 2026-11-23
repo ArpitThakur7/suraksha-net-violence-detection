@@ -1,6 +1,6 @@
 __pycache__/
 *.pyc
-local_data/
+demo_app/data/
 datasets/public/
 *.pth
 *.zip
@@ -10,11 +10,11 @@ datasets/public/
 *.mp4
 *.avi
 .ml_deps/
-ml_runs/features/
-ml_runs/torch_cache/
-optimization/camera_replay/tmp*/
+ml_runs/
+pretrained_weights/
 work/cache/
 work/release/
+work/.pytest_tmp*/
 .superpowers/
 .claude/session-memory/
 work/runs/

@@ -1,40 +1,71 @@
-# Suraksha-Net laptop demo
+# Suraksha-Net: leakage-free violence detection in surveillance video
 
-The measured semester results, checkpoint provenance, benchmark comparison and demo instructions are in [the semester handoff](submission/SEMESTER_HANDOFF.md). The [submission archive](submission/Suraksha_Semester.zip) contains the laptop code, model weights, results and a recorded demonstration. Use the report's named model and dataset when quoting a metric.
+Binary violence detection (violent / non-violent clips) evaluated with group-aware, leakage-free
+splits on three public datasets, including cross-dataset tests and a study of how much leaky splits
+inflate reported accuracy. Design: [docs/superpowers/specs](docs/superpowers/specs/2026-11-22-violence-pipeline-design.md),
+implementation plan: [docs/superpowers/plans](docs/superpowers/plans/2026-11-22-violence-pipeline.md).
 
-Open http://127.0.0.1:8741 on this laptop. To restart the app, run this command from the project directory:
+## Layout
+
+| Path | Contents |
+|---|---|
+| `pipeline/` | The research pipeline: audit, splits, frame cache, models, trainer, evaluation, statistics, experiment grid (`python -m pipeline <command>`) |
+| `pipeline/configs/` | `base.yaml` (all settings), `grid.yaml` (full experiment grid), `grid_day.yaml` (one-day subset) |
+| `work/manifest/` | Audit of every clip: SHA-256, metadata, near-duplicates, source groups |
+| `work/splits/` | Locked protocol splits (`LOCK.json` holds their hashes) |
+| `work/runs/` | Training runs and test metrics (not in git) |
+| `work/bench/` | GPU memory and epoch-timing pilots |
+| `colab/` | Colab worker notebooks for the experiment grid |
+| `demo_app/` | Local web demo: upload a video, see flagged intervals (FastAPI) |
+| `datasets/public/` | The three datasets (not in git) |
+| `pretrained_weights/` | Cached ImageNet / Kinetics-400 backbone weights (not in git) |
+
+## Protocols
+
+- **P1** within-dataset: `p1_rwf`, `p1_sfd`, `p1_avd`
+- **P2** all three datasets pooled: `p2_all`
+- **P3** leave-one-dataset-out (train on two, test on the third): `p3_no_rwf`, `p3_no_sfd`, `p3_no_avd`
+- **P4** bias study: random vs group-aware splits (`p4_random`, `p4_grouped`, `p2_all_leaky`)
+
+## Running
 
 ```powershell
-python -m uvicorn suraksha.app:app --host 127.0.0.1 --port 8741
+python -m pytest                                   # test suite
+python -m pipeline grid --dry-run                  # experiment list and estimated GPU hours
+python -m pipeline grid --grid pipeline/configs/grid_day.yaml   # train + evaluate
+python -m pipeline evaluate --all                  # (re)evaluate finished runs
 ```
 
-The review page accepts an MP4 and an adjustable threshold. It saves the recording, window scores, merged incident intervals and review statuses in `local_data/`. Select a saved recording, click an interval to seek to it, and choose **Reviewed** or **False alarm** to save a decision. H.264 MP4 is suitable for browser playback. Source footage remains local. Upload limits are 250 MiB and approximately 15 minutes.
+## Demo app
 
-## Detector
+```powershell
+python -m uvicorn demo_app.app:app --host 127.0.0.1 --port 8741
+```
 
-The local CPU runner loads `review/checkpoint/best_model.pth` with PyTorch's restricted weights loader and checks all state-dict keys. It uses the ResNet18–LSTM architecture verified against Vishnu's checkpoint. Each four-second window starts two seconds after the previous one. RGB frames are resized to 224 × 224 with bilinear interpolation; 16 frames are uniformly sampled (short windows repeat their final frame). Normalization comes from the checkpoint. The score is the violence-class softmax output. A final partial interval is included. Touching or overlapping flagged windows are merged and the highest-scoring window supplies the incident snapshot. Boundaries describe the windows, so incident timing has window-level precision.
+Open http://127.0.0.1:8741, upload an MP4 and adjust the threshold. Recordings and review
+decisions are stored in `demo_app/data/`. The detector is the baseline ResNet18-LSTM checkpoint in
+`demo_app/models/` (4-second windows, 2-second stride, 16 frames at 224 px). Extra packages:
+`demo_app/requirements.txt`.
 
-The demo starts at Vishnu's supplied threshold of 0.40. The decision applies to each four-second window. His handoff reports clip-level metrics, and the earlier INT8 benchmark used 0.50. The three reference recordings in the library exercise playback and workflow. Their overlap with historical training data is unknown.
+## Datasets
 
-## Dataset handoff
+- **RWF-2000**: M. Cheng, K. Cai and M. Li, "RWF-2000: An Open Large Scale Video Database for
+  Violence Detection", ICPR 2020. Not redistributable without the authors' approval.
+- **Surveillance Camera Fight Dataset (SFD)**: Ş. Aktı, G. A. Tataroğlu and H. K. Ekenel,
+  "Vision-based Fight Detection from Surveillance Cameras", IPTA 2019.
+  [GitHub](https://github.com/seymanurakti/fight-detection-surv-dataset)
+- **AIRTLab dataset (AVD)**: M. Bianculli et al., "A dataset for automatic violence detection in
+  videos", Data in Brief 33 (2020).
+  [GitHub](https://github.com/airtlab/A-Dataset-for-Automatic-Violence-Detection-in-Videos)
 
-`handoff/dataset_metadata.csv` contains project-relative paths, source, binary label (0 = nonviolence, 1 = violence), event/source group, SHA-256, frame rate, decoded frame count, resolution, duration, assigned split, and any exclusions. Train, validation and test CSVs are saved alongside it.
+## Pretrained weights
 
-These are new prospective splits. Vishnu should load the paths from each CSV directly; rerunning his folder-based splitter would discard their group boundaries. Resolve paths against the project root. For an evaluation on this split, start training from the original pretrained backbone. The previous checkpoint's original split membership is unknown.
+All models start from public pretrained weights and are fine-tuned or probed on the datasets
+above: ImageNet (MobileNetV3, ResNet, EfficientNet backbones) and Kinetics-400 (R(2+1)D, MViT) from
+torchvision. Any additional pretrained models are listed with their sources in the paper.
 
-| Dataset | Train | Validation | Test |
-| --- | ---: | ---: | ---: |
-| SFD | 208 | 45 | 47 |
-| AIRTLab | 246 | 52 | 52 |
-| Total | 454 | 97 | 99 |
+## Credits
 
-AIRTLab pairs camera views using class and original scene number. SFD uses each source recording in the authors' `videos.txt`. The two supplementary SFD ranges have ambiguous boundaries and share clip 076, so the handoff keeps clips 062–091 from the no-fight class in a single group. All 650 clips were decoded. All file hashes were unique. The split preserves every known source group. Labels come from the publishers. Semantic duplicates across unrelated source IDs have not been manually audited.
-
-- [SFD source](https://github.com/seymanurakti/fight-detection-surv-dataset/tree/ff83b7c521e5ca4eb67a212cc42dbc54f39d6290), Ş. Aktı, G. A. Tataroğlu and H. K. Ekenel (IPTA 2019). Local copy: `datasets/public/sfd/`.
-- [AIRTLab source](https://github.com/airtlab/A-Dataset-for-Automatic-Violence-Detection-in-Videos/tree/1f7747e104301ccaa82ef5a2f6804b51ced1c398), M. Bianculli and colleagues (Data in Brief 2020). Local copy: `datasets/public/avd/`.
-- RWF-2000 is pending. The [Zenodo release](https://zenodo.org/records/15687512) has a 9.4 GB multipart archive. Allow space for both the archive and unpacked videos before importing it. Keep its original holdout separate.
-
-Run `python dataset_handoff.py` to regenerate these manifests from the two pinned local collections. Run `python verify_demo.py` while the service is running to check uploads, playback, scoring, snapshots, review persistence, and invalid-file handling using the three public reference clips. This check temporarily changes and restores review status on those demo records.
-
-On a new laptop install the packages in `requirements-demo.txt` and provide the checkpoint at the path above. On this laptop the dependencies are already installed.
-
+Project team: Arpit Thakur and Vishnu. The baseline ResNet18-LSTM checkpoint used by the demo was
+trained by Vishnu in the semester phase of the project. Earlier semester material is archived
+outside this repository.

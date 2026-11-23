@@ -2,7 +2,7 @@
 import importlib
 import sys
 
-SUBCOMMANDS = ("audit", "split", "cache", "train", "evaluate", "grid", "bias", "bench", "report")
+SUBCOMMANDS = ("audit", "split", "fetch", "cache", "train", "evaluate", "grid", "bias", "bench", "report")
 
 
 def main(argv=None) -> int:

@@ -11,7 +11,7 @@ DATASETS = ROOT / "datasets"
 _deps = str(ROOT / ".ml_deps")
 if _deps not in sys.path:
     sys.path.insert(0, _deps)
-os.environ.setdefault("TORCH_HOME", str(ROOT / "ml_runs" / "torch_cache"))
+os.environ.setdefault("TORCH_HOME", str(ROOT / "pretrained_weights"))
 
 
 def _resolve(p) -> Path:

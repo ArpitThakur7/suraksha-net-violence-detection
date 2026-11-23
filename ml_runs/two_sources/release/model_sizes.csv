@@ -1,7 +1,0 @@
-run,parameters,mib
-sfd_vgg16,14780610,56.39
-avd_vgg16,14780610,56.39
-combined_vgg16,14780610,56.39
-combined_lightweight,4171774,16.19
-combined_cnn_lstm,11998146,45.84
-lstm_layers_2,12524482,47.85

@@ -1,0 +1,6 @@
+model,seconds_per_epoch,protocol,batch,T,crop,gpu
+cnn_lstm,121.7,p2_all,16,16,224,NVIDIA GeForce RTX 4050 Laptop GPU
+mnv3_tsm,116.7,p2_all,8,16,224,NVIDIA GeForce RTX 4050 Laptop GPU
+r2plus1d,338.7,p2_all,4,16,224,NVIDIA GeForce RTX 4050 Laptop GPU
+mvit_s,352.3,p2_all,2,16,224,NVIDIA GeForce RTX 4050 Laptop GPU
+motionlite,129.3,p2_all,8,16,224,NVIDIA GeForce RTX 4050 Laptop GPU

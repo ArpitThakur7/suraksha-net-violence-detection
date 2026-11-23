@@ -1,0 +1,53 @@
+# One-day grid (laptop + 3 Colab L4, ~6 h wall): a subset of grid.yaml with identical run dirs, so
+# every cell here is also a cell of the full grid and later runs extend it without retraining.
+#   - 3 seeds: CNN-LSTM, MobileNetV3-TSM and MotionLite (ours) on P1-RWF + P2 + P3 (headline)
+#   - 1 seed:  R(2+1)D and MViT-S (heavy baselines) on the same protocols
+#   - bias study (MobileNetV3-TSM, leaky vs grouped splits), 3 seeds
+#   - MotionLite component ablations on P2, seed 0
+# Test-set uncertainty comes from the grouped bootstrap in pipeline/evaluate.py.
+defaults:
+  - train.keep_last=false
+
+model_setup:
+  mvit_s: [train.lr=0.0001]
+
+protocol_sets:
+  headline: &headline [p2_all, p3_no_rwf, p3_no_sfd, p3_no_avd]
+  bias: &bias [p4_random, p4_grouped, p2_all_leaky]
+
+blocks:
+  - name: headline_light
+    models: [cnn_lstm, mnv3_tsm, motionlite]
+    protocols: *headline
+    seeds: [0, 1, 2]
+    priority: 1
+  - name: headline_heavy
+    models: [r2plus1d, mvit_s]
+    protocols: *headline
+    seeds: [0]
+    priority: 1
+  - name: p1_rwf
+    models: [mnv3_tsm, motionlite]
+    protocols: [p1_rwf]
+    seeds: [0, 1, 2]
+    priority: 1
+  - name: p1_rwf_heavy
+    models: [r2plus1d]
+    protocols: [p1_rwf]
+    seeds: [0]
+    priority: 1
+  - name: bias
+    models: [mnv3_tsm]
+    protocols: *bias
+    seeds: [0, 1, 2]
+    priority: 1
+  - name: motionlite_model_ablations
+    models: [motionlite]
+    protocols: [p2_all]
+    seeds: [0]
+    priority: 2
+    variants:
+      - {model_kw: {diff: false}}
+      - {model_kw: {tsm: false}}
+      - {model_kw: {pool: avg}}
+      - {model_kw: {fusion: early}}
