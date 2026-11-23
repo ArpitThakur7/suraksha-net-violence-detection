@@ -28,6 +28,9 @@ train:
   label_smoothing: 0.1
   warmup_epochs: 2
   effective_batch: 32
+  batch: null        # micro-batch; null = per-model DEFAULT_BATCH in train.py (accum = effective_batch / batch)
+  pretrained: true
+  device: auto       # auto = cuda if available; AMP is used only on cuda
   workers: 4
   deterministic: true
   max_epochs: 40
