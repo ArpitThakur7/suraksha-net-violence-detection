@@ -123,6 +123,32 @@ def _device(tc) -> torch.device:
     return torch.device(("cuda" if torch.cuda.is_available() else "cpu") if d == "auto" else d)
 
 
+def make_criterion(cfg, protocol: str):
+    """crit(logits, y, clip_ids). Label-smoothed CE; with train.distill_teacher set (e.g. videomae)
+    it becomes (1 - a) * CE + a * soft CE against the teacher's out-of-fold P(violent) for each
+    train clip (work/probe/<protocol>/<teacher>/teacher_train.csv, `probe teacher`), a =
+    train.distill_alpha."""
+    tc = cfg["train"]
+    ce = nn.CrossEntropyLoss(label_smoothing=float(tc["label_smoothing"]))
+    teacher = tc.get("distill_teacher")
+    if not teacher:
+        return lambda logits, y, cid: ce(logits, y)
+    from pipeline.paths import work_dir
+    f = work_dir(cfg) / "probe" / protocol / str(teacher) / "teacher_train.csv"
+    if not f.exists():
+        raise FileNotFoundError(f"{f} missing; run `python -m pipeline probe teacher --backbone {teacher} --protocol {protocol}`")
+    t = pd.read_csv(f, dtype={"clip_id": str})
+    tmap = dict(zip(t["clip_id"], t["prob"].astype(float)))
+    alpha = float(tc.get("distill_alpha", 0.5))
+
+    def crit(logits, y, cid):
+        pt = torch.tensor([tmap[c] for c in cid], device=logits.device, dtype=logits.dtype)
+        soft = torch.stack([1 - pt, pt], 1)
+        kd = -(soft * logits.log_softmax(1)).sum(1).mean()
+        return (1 - alpha) * ce(logits, y) + alpha * kd
+    return crit
+
+
 def _train_epoch(model, loader, opt, sched, scaler, crit, accum, dev, use_amp):
     """One epoch with gradient accumulation; the last, shorter accumulation group is averaged
     over its own size. Returns (mean train loss, train accuracy)."""
@@ -131,11 +157,11 @@ def _train_epoch(model, loader, opt, sched, scaler, crit, accum, dev, use_amp):
     full = (n // accum) * accum
     loss_sum = correct = seen = 0.0
     opt.zero_grad(set_to_none=True)
-    for i, (x, y, _) in enumerate(loader):
+    for i, (x, y, cid) in enumerate(loader):
         x, y = x.to(dev, non_blocking=True), y.to(dev, non_blocking=True)
         with torch.autocast("cuda", dtype=torch.float16, enabled=use_amp):
             logits = model(x)
-            loss = crit(logits.float(), y)
+            loss = crit(logits.float(), y, cid)
         scaler.scale(loss / (accum if i < full else n - full)).backward()
         if (i + 1) % accum == 0 or i + 1 == n:
             scaler.unscale_(opt)
@@ -222,7 +248,7 @@ def _fit(cfg, protocol, model, seed, out, model_kw, T, crop, batch, accum) -> di
     sched = torch.optim.lr_scheduler.LambdaLR(
         opt, _lr_lambda(int(tc["warmup_epochs"]) * steps_per_epoch, max_epochs * steps_per_epoch))
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
-    crit = nn.CrossEntropyLoss(label_smoothing=float(tc["label_smoothing"]))
+    crit = make_criterion(cfg, protocol)
     val_loader = make_loader(m, "val", cfg, norm, train=False, batch_size=batch, seed=seed)
     val_df = m[m["split"] == "val"].set_index("clip_id")
 

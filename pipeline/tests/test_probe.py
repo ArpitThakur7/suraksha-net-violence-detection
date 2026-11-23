@@ -44,3 +44,22 @@ def test_extract_with_fake_encoder(tmp_path, monkeypatch):
     z = np.load(out)
     assert z["feats"].shape == (3, 2, 3) and list(z["clip_ids"]) == ["a", "b", "c"]
     assert seen[0] == (4, 4, 3, 32, 32)        # batch 2 clips x 2 views, T=4, 32 px
+
+
+def test_distill_criterion_mixes_ce_and_teacher(tmp_path):
+    import torch
+    from pipeline.train import make_criterion
+    cfg = {"paths": {"work": str(tmp_path)},
+           "train": {"label_smoothing": 0.0, "distill_teacher": "videomae", "distill_alpha": 0.5}}
+    d = tmp_path / "probe" / "p2_all" / "videomae"
+    d.mkdir(parents=True)
+    pd.DataFrame({"clip_id": ["a", "b"], "label": [1, 0], "prob": [0.9, 0.2]}).to_csv(d / "teacher_train.csv", index=False)
+    crit = make_criterion(cfg, "p2_all")
+    logits = torch.tensor([[0.0, 1.0], [1.0, 0.0]])
+    y = torch.tensor([1, 0])
+    ce = torch.nn.functional.cross_entropy(logits, y)
+    soft = torch.tensor([[0.1, 0.9], [0.8, 0.2]])
+    kd = -(soft * logits.log_softmax(1)).sum(1).mean()
+    assert torch.isclose(crit(logits, y, ["a", "b"]), 0.5 * ce + 0.5 * kd)
+    plain = make_criterion({"train": {"label_smoothing": 0.0}}, "p2_all")
+    assert torch.isclose(plain(logits, y, ["a", "b"]), ce)

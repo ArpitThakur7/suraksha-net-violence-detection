@@ -164,11 +164,97 @@ def epoch_pilot(cfg: dict, protocol: str = "p2_all", models=EPOCH_MODELS) -> pd.
     return pd.DataFrame(rows)
 
 
+SPEED_MODELS = ("motionlite", "mnv3_tsm", "cnn_lstm", "r2plus1d", "mvit_s", "videomae", "clip")
+
+
+def _speed_model(name: str, dev):
+    """(callable x -> output, module, input shape [1,T,3,S,S]) for a fine-tuned architecture or a
+    frozen probe backbone (VideoMAE / CLIP, whose linear head adds negligible cost)."""
+    if name in ("videomae", "clip"):
+        from pipeline import probe
+        spec = probe.BACKBONES[name]
+        enc = probe.load_backbone(name, dev)
+        return enc, None, (1, spec["T"], 3, spec["size"], spec["size"])
+    from pipeline.models import build_model
+    net = build_model(name, pretrained=False, T=16).to(dev).eval()
+    return net, net, (1, 16, 3, 224, 224)
+
+
+@torch.inference_mode()
+def speed_bench(cfg: dict, models=SPEED_MODELS, gpu_iters: int = 30, cpu_iters: int = 5) -> pd.DataFrame:
+    """Per model: parameters, GFLOPs per clip (torch FlopCounterMode, one forward), median latency
+    for one clip on the GPU (fp16 autocast) and on the CPU (fp32, 4 threads), peak GPU memory.
+    -> work/bench/speed.csv"""
+    import statistics
+    from torch.utils.flop_counter import FlopCounterMode
+    rows = []
+    torch.set_num_threads(4)
+    for name in models:
+        r = {"model": name}
+        for dev_s in (["cuda"] if torch.cuda.is_available() else []) + ["cpu"]:
+            dev = torch.device(dev_s)
+            fn, mod, shape = _speed_model(name, dev)
+            if dev_s == "cpu":
+                params = mod.parameters() if mod is not None else _speed_params(name)
+                r["params_m"] = round(sum(p.numel() for p in params) / 1e6, 2)
+                try:
+                    fc = FlopCounterMode(display=False)
+                    with fc:
+                        fn(torch.randn(*shape))
+                    r["gflops"] = round(fc.get_total_flops() / 1e9, 1)
+                except Exception:
+                    r["gflops"] = float("nan")
+            x = torch.randn(*shape, device=dev)
+            n, warm = (gpu_iters, 10) if dev_s == "cuda" else (cpu_iters, 2)
+            if dev_s == "cuda":
+                torch.cuda.empty_cache()
+                torch.cuda.reset_peak_memory_stats()
+            ts = []
+            for k in range(warm + n):
+                if dev_s == "cuda":
+                    torch.cuda.synchronize()
+                t0 = time.perf_counter()
+                with torch.autocast(device_type=dev_s, dtype=torch.float16, enabled=dev_s == "cuda"):
+                    fn(x)
+                if dev_s == "cuda":
+                    torch.cuda.synchronize()
+                if k >= warm:
+                    ts.append((time.perf_counter() - t0) * 1000)
+            r[f"{dev_s}_ms"] = round(statistics.median(ts), 1)
+            if dev_s == "cuda":
+                r["gpu_peak_mb"] = round(torch.cuda.max_memory_allocated() / 2**20)
+            del fn, mod, x
+            gc.collect()
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+        r["input"] = "x".join(str(v) for v in shape[1:])
+        r["gpu"] = torch.cuda.get_device_name(0) if torch.cuda.is_available() else ""
+        rows.append(r)
+        print(f"  {name:10s} {r.get('params_m')} M params  {r.get('gflops')} GFLOPs  "
+              f"gpu {r.get('cuda_ms')} ms  cpu {r.get('cpu_ms')} ms", flush=True)
+    df = pd.DataFrame(rows)
+    out = work_dir(cfg) / "bench" / "speed.csv"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    df.to_csv(out, index=False)
+    print(f"wrote {out}")
+    return df
+
+
+def _speed_params(name: str):
+    from pipeline import probe
+    from transformers import CLIPVisionModelWithProjection, VideoMAEForVideoClassification
+    cls = VideoMAEForVideoClassification if name == "videomae" else CLIPVisionModelWithProjection
+    net = cls.from_pretrained(probe.BACKBONES[name]["hf"])
+    return net.videomae.parameters() if name == "videomae" else net.parameters()
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="pipeline bench")
     ap.add_argument("--memory", action="store_true", help="GPU memory pilot -> work/bench/memory.csv")
     ap.add_argument("--epoch", action="store_true",
                     help="epoch timing pilot on p2_all -> work/bench/epoch_seconds.csv")
+    ap.add_argument("--speed", action="store_true",
+                    help="params, GFLOPs and per-clip latency (GPU fp16, CPU) -> work/bench/speed.csv")
     ap.add_argument("--config", default="pipeline/configs/base.yaml")
     ap.add_argument("--override", action="append", default=[])
     a = ap.parse_args(argv)
@@ -178,6 +264,9 @@ def main(argv=None) -> int:
         return 0
     if a.epoch:
         epoch_pilot(cfg)
+        return 0
+    if a.speed:
+        speed_bench(cfg)
         return 0
     ap.print_help()
     return 2

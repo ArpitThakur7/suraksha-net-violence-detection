@@ -1,0 +1,15 @@
+# MotionLite distilled from frozen VideoMAE (probe teacher, out-of-fold targets per protocol).
+# Prerequisite: python -m pipeline probe teacher --backbone videomae --protocol <each protocol below>
+# Run dirs: <protocol>/motionlite__train.distill_teacher-videomae/seed<k>; compare with the plain
+# motionlite runs of grid_day.yaml (same seeds, same everything except the loss).
+defaults:
+  - train.keep_last=false
+
+blocks:
+  - name: motionlite_distill
+    models: [motionlite]
+    protocols: [p2_all, p3_no_rwf, p3_no_sfd, p3_no_avd, p1_rwf]
+    seeds: [0]
+    priority: 1
+    variants:
+      - {overrides: [train.distill_teacher=videomae]}

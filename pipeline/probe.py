@@ -221,11 +221,52 @@ def fit_probe(Xtr, ytr, wtr, Xva, yva, c_grid=C_GRID):
     return best
 
 
+def load_features(cfg, backbone: str, views: int = 4):
+    """(clip_id -> row, feats [N,V,D]). "a+b" concatenates the feature sets of a and b on D."""
+    parts = backbone.split("+")
+    zs = [np.load(feature_path(cfg, b, views)) for b in parts]
+    ids = zs[0]["clip_ids"].tolist()
+    index = {c: i for i, c in enumerate(ids)}
+    feats = [zs[0]["feats"]]
+    for z in zs[1:]:
+        pos = {c: i for i, c in enumerate(z["clip_ids"].tolist())}
+        feats.append(z["feats"][[pos[c] for c in ids]])
+    return index, np.concatenate(feats, axis=-1)
+
+
+def features_exist(cfg, backbone: str, views: int = 4) -> bool:
+    return all(feature_path(cfg, b, views).exists() for b in backbone.split("+"))
+
+
+def teacher_targets(cfg, backbone: str, protocol: str, views: int = 4, folds: int = 5) -> Path:
+    """Out-of-fold P(violent) of a linear probe for every train clip of `protocol`
+    (StratifiedGroupKFold on global_group, C chosen on the val split). A clip's target never comes
+    from a probe that saw it, and only the protocol's own train/val rows are used, so a P3 teacher
+    knows nothing about the held-out dataset. -> work/probe/<protocol>/<backbone>/teacher_train.csv"""
+    from sklearn.model_selection import StratifiedGroupKFold
+    index, feats = load_features(cfg, backbone, views)
+    m = load_protocol(protocol, cfg)
+    tr = m[m["split"] == "train"].reset_index(drop=True)
+    va = m[m["split"] == "val"].reset_index(drop=True)
+    X, y = _rows(tr, index, feats), tr["label"].to_numpy(int)
+    w = _weights(tr, protocol.startswith(("p2", "p3")))
+    Xva, yva = _rows(va, index, feats), va["label"].to_numpy(int)
+    oof = np.full(len(tr), np.nan)
+    for a, b in StratifiedGroupKFold(folds, shuffle=True, random_state=0).split(X[:, 0], y, tr["global_group"]):
+        pred, _, _ = fit_probe(X[a], y[a], w[a], Xva, yva)
+        oof[b] = pred(X[b])
+    assert not np.isnan(oof).any()
+    out = work_dir(cfg) / "probe" / protocol / backbone / "teacher_train.csv"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    pd.DataFrame({"clip_id": tr["clip_id"], "label": y, "prob": oof}).to_csv(out, index=False)
+    from sklearn.metrics import roc_auc_score
+    print(f"[teacher:{backbone}] {protocol}: {len(tr)} train clips, out-of-fold AUC {roc_auc_score(y, oof):.3f} -> {out}")
+    return out
+
+
 def run_probe(cfg, backbone: str, protocol: str, views: int = 4) -> dict:
     from pipeline.evaluate import section, _clean
-    z = np.load(feature_path(cfg, backbone, views))
-    index = {c: i for i, c in enumerate(z["clip_ids"].tolist())}
-    feats = z["feats"]
+    index, feats = load_features(cfg, backbone, views)
     m = load_protocol(protocol, cfg)
     tr, va, te = (m[m["split"] == s].reset_index(drop=True) for s in ("train", "val", "test"))
     by_ds = protocol.startswith(("p2", "p3"))
@@ -309,8 +350,9 @@ def table(cfg) -> pd.DataFrame:
 
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="pipeline probe")
-    ap.add_argument("action", choices=("extract", "train", "table"))
-    ap.add_argument("--backbone", action="append", default=None, choices=tuple(BACKBONES))
+    ap.add_argument("action", choices=("extract", "train", "teacher", "table"))
+    ap.add_argument("--backbone", action="append", default=None,
+                    help=f"one of {', '.join(BACKBONES)}; train/teacher also accept a+b (concatenated features)")
     ap.add_argument("--protocol", action="append", default=None, choices=PROTOCOLS)
     ap.add_argument("--views", type=int, default=4)
     ap.add_argument("--batch", type=int, default=4)
@@ -321,13 +363,21 @@ def main(argv=None) -> int:
     a = ap.parse_args(argv)
     cfg = load_config(a.config, a.overrides)
     backbones = a.backbone or list(BACKBONES)
+    for b in backbones:
+        if any(x not in BACKBONES for x in b.split("+")) or (a.action == "extract" and "+" in b):
+            ap.error(f"bad --backbone {b!r}")
+    if a.action == "teacher":
+        for b in backbones:
+            for p in a.protocol or PROTOCOLS:
+                teacher_targets(cfg, b, p, a.views)
+        return 0
     if a.action == "extract":
         for b in backbones:
             ids = clip_universe(cfg)[: a.limit] if a.limit else None
             extract(cfg, b, a.views, a.batch, a.workers, clip_ids=ids)
     elif a.action == "train":
         for b in backbones:
-            if not feature_path(cfg, b, a.views).exists():
+            if not features_exist(cfg, b, a.views):
                 print(f"skip {b}: no features (run `probe extract --backbone {b}`)")
                 continue
             for p in a.protocol or PROTOCOLS:

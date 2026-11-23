@@ -29,7 +29,13 @@ MODEL_STYLE = {
     "clip": ("#e87ba4", "v", "CLIP ViT-B/16 (frozen)"),
     "cnn_lstm": ("#6250d6", "P", "CNN-LSTM (fine-tuned)"),
     "mvit_s": ("#e34948", "X", "MViT-S (fine-tuned)"),
+    "motionlite_kd": ("#008300", "*", "MotionLite + VideoMAE distillation (ours)"),
 }
+
+
+def canon(model: str) -> str:
+    """Run-dir variant name -> MODEL_STYLE key."""
+    return "motionlite_kd" if "distill_teacher" in model else model
 PROTOCOL_LABEL = {
     "p1_rwf": "RWF-2000 only", "p1_sfd": "SFD only", "p1_avd": "AIRTLab only",
     "p2_all": "All three pooled", "p3_no_rwf": "Unseen RWF-2000", "p3_no_sfd": "Unseen SFD",
@@ -55,6 +61,7 @@ def _key(model: str, kind: str) -> str:
 
 def fig_auc(summary: pd.DataFrame, out: Path):
     import matplotlib.pyplot as plt
+    summary = summary.assign(model=summary.model.map(canon))
     protos = [p for p in PROTOCOL_LABEL if p in set(summary.protocol)]
     models = [m for m in MODEL_STYLE if m in set(summary.model)]
     fig, ax = plt.subplots(figsize=(8, 0.48 * len(protos) + 1.6), facecolor=SURFACE)
@@ -92,8 +99,9 @@ def _pred_files(cfg, protocol: str) -> dict:
     for f in sorted((work_dir(cfg) / "probe" / protocol).glob("*/test_preds.csv")):
         files[f"{f.parent.name}|frozen probe"] = f
     for f in sorted(runs_root(cfg).glob(f"{protocol}/*/seed0/test_preds.csv")):
-        if "__" not in f.parent.parent.name:
-            files[f"{f.parent.parent.name}|fine-tuned"] = f
+        name = f.parent.parent.name
+        if "__" not in name or "distill_teacher" in name:
+            files[f"{canon(name)}|fine-tuned"] = f
     return files
 
 
@@ -146,6 +154,36 @@ def fig_confusion(f: Path, title: str, out: Path):
     plt.close(fig)
 
 
+def fig_tradeoff(summary: pd.DataFrame, speed: pd.DataFrame, out: Path, protocol: str = "p2_all"):
+    """Pooled test ROC-AUC against GPU latency per clip (log x): the accuracy / cost trade-off."""
+    import matplotlib.pyplot as plt
+    d = summary[summary.protocol == protocol].assign(model=summary.model.map(canon))
+    sp = speed.set_index("model")
+    fig, ax = plt.subplots(figsize=(6, 4.2), facecolor=SURFACE)
+    _style(ax, plt)
+    for r in d.itertuples():
+        arch = "motionlite" if r.model == "motionlite_kd" else r.model
+        if arch not in sp.index or not np.isfinite(sp.loc[arch, "cuda_ms"]):
+            continue
+        c, mk, lab = MODEL_STYLE.get(r.model, MODEL_STYLE["videomae"])
+        x = float(sp.loc[arch, "cuda_ms"])
+        frozen = r.kind == "frozen probe"
+        ax.errorbar(x, r.roc_auc, yerr=[[r.roc_auc - r.auc_lo], [r.auc_hi - r.roc_auc]], fmt="none",
+                    ecolor=c, elinewidth=1.5, alpha=0.8)
+        ax.scatter(x, r.roc_auc, s=90, marker=mk, facecolor=c if frozen else SURFACE, edgecolor=c,
+                   linewidth=2, zorder=3)
+        ax.annotate(f"{lab.split(' (')[0]}
+{sp.loc[arch, 'params_m']:.1f} M params", (x, r.roc_auc),
+                    xytext=(7, -4), textcoords="offset points", fontsize=7.5, color=INK2)
+    ax.set_xscale("log")
+    ax.set_xlabel("GPU latency per 16-frame clip, ms (log scale, RTX 4050 laptop, fp16)", color=INK2)
+    ax.set_ylabel("Test ROC-AUC, all three pooled", color=INK2)
+    ax.set_title("Accuracy vs cost (filled = frozen backbone, hollow = fine-tuned)", color=INK, loc="left", fontsize=10)
+    fig.tight_layout()
+    fig.savefig(out, dpi=200, facecolor=SURFACE)
+    plt.close(fig)
+
+
 def make_all(cfg) -> list[Path]:
     import matplotlib
     matplotlib.use("Agg")
@@ -156,6 +194,10 @@ def make_all(cfg) -> list[Path]:
     if summ.exists():
         fig_auc(pd.read_csv(summ), out / "fig_auc_protocols.png")
         made.append(out / "fig_auc_protocols.png")
+    speed = work_dir(cfg) / "bench" / "speed.csv"
+    if summ.exists() and speed.exists():
+        fig_tradeoff(pd.read_csv(summ), pd.read_csv(speed), out / "fig_tradeoff_p2_all.png")
+        made.append(out / "fig_tradeoff_p2_all.png")
     for p in ("p1_rwf", "p2_all", "p3_no_rwf", "p3_no_sfd", "p3_no_avd"):
         if fig_roc(cfg, p, out / f"fig_roc_{p}.png"):
             made.append(out / f"fig_roc_{p}.png")

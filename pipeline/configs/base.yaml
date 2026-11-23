@@ -37,6 +37,8 @@ train:
   max_epochs: 40
   keep_last: true    # false: delete last.pt once DONE is written (the grid sets false)
   patience: 6
+  distill_teacher: null   # e.g. videomae: distil from `probe teacher` targets (train.make_criterion)
+  distill_alpha: 0.5      # weight of the teacher term
   selection:
     metric: val_roc_auc
     mode: max
