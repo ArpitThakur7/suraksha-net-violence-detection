@@ -46,11 +46,19 @@ def test_sample_train_within_bounds():
         assert idx.max() - idx.min() >= 0.6 * (n - 1) * (T - 1) / T
 
 
-def test_eval_views_shift():
+def test_eval_views_are_distinct_windows():
     rng = np.random.default_rng(0)
-    a = sample_indices(100, 16, False, rng, view=0, views=2)
-    b = sample_indices(100, 16, False, rng, view=1, views=2)
-    assert a[0] == 0 and a[-1] == 99 and (a != b).any() and b.max() <= 99
+    assert (sample_indices(100, 16, False, rng) == np.rint(np.linspace(0, 99, 16)).astype(int)).all()
+    v = [sample_indices(100, 16, False, rng, view=k, views=3) for k in range(3)]
+    for a in v:
+        assert len(a) == 16 and (np.diff(a) >= 0).all() and a.min() >= 0 and a.max() <= 99
+    assert v[0][0] == 0 and v[2][-1] == 99
+    assert all((v[i] != v[j]).any() for i in range(3) for j in range(i + 1, 3))
+    assert v[0][0] < v[1][0] < v[2][0] and v[0][-1] < v[1][-1] < v[2][-1]
+    short = [sample_indices(10, 16, False, rng, view=k, views=3) for k in range(3)]
+    assert all((s_ == short[0]).all() for s_ in short)  # clips shorter than T: all views identical
+    near = [sample_indices(17, 16, False, rng, view=k, views=3) for k in range(3)]
+    assert all(a.min() >= 0 and a.max() <= 16 for a in near)
 
 
 def test_test_guard(tmp_path):

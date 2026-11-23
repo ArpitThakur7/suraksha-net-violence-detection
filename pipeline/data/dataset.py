@@ -25,7 +25,8 @@ from pipeline.data.cache import num_frames, read_clip
 
 def sample_indices(n: int, T: int, train: bool, rng: np.random.Generator,
                    view: int = 0, views: int = 1) -> np.ndarray:
-    """T frame indices into a clip of n frames. n < T: 0..n-1 then the last frame repeated."""
+    """T frame indices into a clip of n frames. n < T: 0..n-1 then the last frame repeated.
+    Eval with views > 1: view v is the v-th of `views` evenly spaced temporal windows."""
     if n <= 0:
         raise ValueError("clip has no frames")
     if n < T:
@@ -34,9 +35,12 @@ def sample_indices(n: int, T: int, train: bool, rng: np.random.Generator,
         seg = n * rng.uniform(0.6, 1.0)
         start = rng.uniform(0.0, n - seg)
         pos = np.linspace(start, start + seg - 1, T)
-    else:
-        step = (n - 1) / (T - 1) if T > 1 else 0.0
-        pos = np.linspace(0, n - 1, T) + (view / views) * step
+    elif views <= 1:
+        pos = np.linspace(0, n - 1, T)
+    else:  # eval window `view` of `views`: evenly spaced starts, each window max(T, n // views) frames
+        w = min(n, max(T, n // views))
+        start = (n - w) * view / (views - 1)
+        pos = np.linspace(start, start + w - 1, T)
     return np.clip(np.rint(pos), 0, n - 1).astype(np.int64)
 
 

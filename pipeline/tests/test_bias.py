@@ -88,3 +88,12 @@ def test_run_bias_aggregation_end_to_end(tmp_path, monkeypatch):
     md = (rep / "bias.md").read_text()
     for h in ("## (a)", "## (b)", "## (c)", "paired"):
         assert h in md
+
+
+def test_accuracy_gap_ci_seeds_share_one_resample():
+    # k identical-test-set seeds must not narrow the CI: same CI as a single seed when the seeds agree
+    a, b = _preds(300, 0.9, 5), _preds(300, 0.8, 6)
+    one = B.accuracy_gap_ci([a], [b], n=200)
+    three = B.accuracy_gap_ci([a, a.copy(), a.copy()], [b, b.copy(), b.copy()], n=200)
+    assert np.allclose(one, three)
+    assert three[2] - three[1] > 0.05  # independent per-seed resampling would give ~1/sqrt(3) of this

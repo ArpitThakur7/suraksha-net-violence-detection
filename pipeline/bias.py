@@ -12,8 +12,8 @@ Uses the protocols locked by `split` (never rebuilds them):
 
 Confidence intervals are percentile (95%) group bootstraps over global_group:
   (a) the two protocols have different test sets, so clips cannot be paired; each bootstrap
-      replicate resamples groups independently within every run, averages accuracy over seeds per
-      protocol and takes the difference of the two means.
+      replicate resamples groups once per protocol, applies that resample to every seed of the
+      protocol (seeds share one test set), averages accuracy over seeds and subtracts.
   (c) both accuracies come from the same predictions, so each replicate resamples groups once
       and computes both accuracies on that same resample (a paired difference).
 Outputs: work/reports/bias.csv (long format: part, label, metric, value, ci_lo, ci_hi) and bias.md.
@@ -41,10 +41,19 @@ def _correct(df: pd.DataFrame) -> pd.Series:
     return (df["pred"] == df["label"]).astype(float)
 
 
-def _group_counts(df: pd.DataFrame):
-    """Per global_group (correct, total) arrays."""
-    g = _correct(df).groupby(df["global_group"]).agg(["sum", "count"])
-    return g["sum"].to_numpy(float), g["count"].to_numpy(float)
+def _group_counts(df: pd.DataFrame) -> pd.DataFrame:
+    """Per global_group (correct, total), indexed by group."""
+    return _correct(df).groupby(df["global_group"]).agg(correct="sum", total="count")
+
+
+def _stack(runs):
+    """[seeds, groups] correct/total matrices; seeds of a protocol share one test set, so the group
+    axis is common (a group missing from a run counts 0)."""
+    cs = [_group_counts(d) for d in runs]
+    groups = sorted(set().union(*(c.index for c in cs)))
+    cs = [c.reindex(groups, fill_value=0.0) for c in cs]
+    return (np.stack([c["correct"].to_numpy(float) for c in cs]),
+            np.stack([c["total"].to_numpy(float) for c in cs]))
 
 
 def _ci(vals, alpha):
@@ -56,19 +65,19 @@ def _ci(vals, alpha):
 
 
 def accuracy_gap_ci(a_runs, b_runs, n: int = 1000, seed: int = 0, alpha: float = 0.05):
-    """Mean accuracy over the runs in a minus in b: (point estimate, lo, hi). Independent group bootstrap."""
-    ca, cb = [_group_counts(d) for d in a_runs], [_group_counts(d) for d in b_runs]
+    """Mean accuracy over the runs in a minus in b: (point estimate, lo, hi). Group bootstrap: the
+    two protocols are resampled independently (different test sets), but within a protocol one group
+    resample per replicate is applied to every seed (all seeds are scored on the same test set)."""
+    (ca, ta), (cb, tb) = _stack(a_runs), _stack(b_runs)
+    mean_acc = lambda c, t, i: float(np.mean(c[:, i].sum(1) / t[:, i].sum(1)))  # noqa: E731
+    all_a, all_b = np.arange(ca.shape[1]), np.arange(cb.shape[1])
+    gap = mean_acc(ca, ta, all_a) - mean_acc(cb, tb, all_b)
     rng = np.random.default_rng(seed)
-
-    def mean_acc(counts, resample):
-        accs = []
-        for c, t in counts:
-            idx = rng.integers(0, len(c), len(c)) if resample else slice(None)
-            accs.append(c[idx].sum() / t[idx].sum())
-        return float(np.mean(accs))
-
-    gap = mean_acc(ca, False) - mean_acc(cb, False)
-    lo, hi = _ci([mean_acc(ca, True) - mean_acc(cb, True) for _ in range(n)], alpha)
+    vals = []
+    for _ in range(n):
+        ia, ib = rng.integers(0, len(all_a), len(all_a)), rng.integers(0, len(all_b), len(all_b))
+        vals.append(mean_acc(ca, ta, ia) - mean_acc(cb, tb, ib))
+    lo, hi = _ci(vals, alpha)
     return gap, lo, hi
 
 
@@ -134,7 +143,8 @@ def render_md(res: dict, model: str, seeds) -> str:
          f"Model: `{model}`, seeds: {list(seeds)}. Accuracy is at the frozen validation threshold on the "
          "test split. CIs: 95% percentile group bootstrap over `global_group`.", "",
          "Method: (a) the two protocols have different test sets, so replicates resample groups "
-         "independently within every run, average accuracy over seeds per protocol and subtract. "
+         "independently per protocol, apply the same group resample to every seed of that protocol "
+         "(seeds share one test set), average accuracy over seeds and subtract. "
          "(c) both accuracies come from the same predictions, so each replicate resamples groups once "
          "and computes both accuracies on it (paired).", "",
          "## (a) Random vs grouped split", ""]
