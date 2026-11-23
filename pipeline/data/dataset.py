@@ -76,11 +76,12 @@ def augment_clip(frames: np.ndarray, crop: int, aug: dict, rng: np.random.Genera
 
 class ClipDataset(Dataset):
     def __init__(self, manifest: pd.DataFrame, split: str, cfg, norm, train: bool,
-                 allow_test: bool = False, seed: int | None = None):
+                 allow_test: bool = False, seed: int | None = None, view: int = 0, views: int = 1):
         if split == "test" and not allow_test:
             raise PermissionError("test rows may only be loaded with allow_test=True (evaluate only)")
         self.df = manifest[manifest["split"] == split].reset_index(drop=True)
         self.cfg, self.train, self.seed = cfg, train, seed
+        self.view, self.views = view, views  # eval-time temporal window (see sample_indices)
         self.T, self.crop = int(cfg["clip"]["T"]), int(cfg["clip"]["crop"])
         self.aug = cfg["clip"]["aug"]
         self.mean = torch.tensor(norm[0], dtype=torch.float32).view(1, 3, 1, 1)
@@ -103,7 +104,7 @@ class ClipDataset(Dataset):
     def __getitem__(self, i):
         cid = self.clip_ids[i]
         rng = self._get_rng()
-        idx = sample_indices(num_frames(cid, self.cfg), self.T, self.train, rng)
+        idx = sample_indices(num_frames(cid, self.cfg), self.T, self.train, rng, self.view, self.views)
         frames = read_clip(cid, self.cfg, idx)
         if self.train:
             x = augment_clip(frames, self.crop, self.aug, rng)
@@ -114,8 +115,9 @@ class ClipDataset(Dataset):
 
 
 def make_loader(manifest, split, cfg, norm, train, allow_test=False, balance_datasets=False,
-                batch_size: int | None = None, seed: int | None = None) -> DataLoader:
-    ds = ClipDataset(manifest, split, cfg, norm, train, allow_test, seed=seed)
+                batch_size: int | None = None, seed: int | None = None, view: int = 0,
+                views: int = 1) -> DataLoader:
+    ds = ClipDataset(manifest, split, cfg, norm, train, allow_test, seed=seed, view=view, views=views)
     workers = int(cfg["train"].get("workers", 4))
     bs = int(batch_size or cfg["train"].get("effective_batch", 32))
     gen = torch.Generator()

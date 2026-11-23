@@ -1,7 +1,10 @@
 """Clip-level metrics, F1 threshold search and calibration error. p is always P(class 1 = violent)."""
 from __future__ import annotations
 
+from typing import Callable
+
 import numpy as np
+from scipy import stats as sps
 from sklearn.metrics import average_precision_score, roc_auc_score
 
 DEFAULT_GRID = np.arange(0.05, 0.951, 0.01)
@@ -64,3 +67,41 @@ def best_threshold(y, p, grid=DEFAULT_GRID) -> float:
     f1 = np.asarray(f1)
     cand = grid[np.isclose(f1, f1.max(), rtol=0, atol=1e-12)]
     return float(cand[np.argmin(np.abs(cand - 0.5))])
+
+
+def group_bootstrap_ci(y, p, groups, metric: Callable, n: int = 1000, seed: int = 0,
+                       alpha: float = 0.05) -> tuple[float, float]:
+    """Percentile CI of metric(y, p) resampling whole groups with replacement. Resamples where
+    the metric is undefined (nan, e.g. a single class) are dropped; no valid resample -> (nan, nan)."""
+    y, p = np.asarray(y), np.asarray(p)
+    _, inv = np.unique(np.asarray(groups), return_inverse=True)
+    members = [np.flatnonzero(inv == g) for g in range(inv.max() + 1)] if len(y) else []
+    if not members:
+        return float("nan"), float("nan")
+    rng = np.random.default_rng(seed)
+    vals = []
+    for _ in range(int(n)):
+        idx = np.concatenate([members[g] for g in rng.integers(0, len(members), len(members))])
+        v = metric(y[idx], p[idx])
+        if not np.isnan(v):
+            vals.append(v)
+    if not vals:
+        return float("nan"), float("nan")
+    lo, hi = np.quantile(vals, [alpha / 2, 1 - alpha / 2])
+    return float(lo), float(hi)
+
+
+def mcnemar(y, pred_a, pred_b) -> tuple[float, float]:
+    """McNemar test on paired correctness. Returns (statistic, p). Exact two-sided binomial when
+    there are < 25 discordant pairs (statistic = min(b, c)), else chi-square with continuity
+    correction. No discordant pairs -> (0.0, 1.0)."""
+    y = np.asarray(y).astype(int)
+    ok_a, ok_b = np.asarray(pred_a).astype(int) == y, np.asarray(pred_b).astype(int) == y
+    b, c = int(np.sum(ok_a & ~ok_b)), int(np.sum(~ok_a & ok_b))
+    d = b + c
+    if d == 0:
+        return 0.0, 1.0
+    if d < 25:
+        return float(min(b, c)), float(min(1.0, 2 * sps.binom.cdf(min(b, c), d, 0.5)))
+    stat = (abs(b - c) - 1) ** 2 / d
+    return float(stat), float(sps.chi2.sf(stat, 1))
