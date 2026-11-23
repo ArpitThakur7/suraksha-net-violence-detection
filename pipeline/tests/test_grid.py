@@ -237,7 +237,7 @@ def test_notebook_valid():
     nb = json.loads((ROOT / "colab" / "train.ipynb").read_text(encoding="utf-8"))
     assert nb["nbformat"] == 4 and nb["cells"]
     src = "\n".join("".join(c["source"]) for c in nb["cells"])
-    for s in ('SHARDS = "1,2"', "N_SHARDS = 7", "DRIVE_DIR", "MACHINE", "drive.mount",
+    for s in ('SHARDS = "2,5"', "N_SHARDS = 7", "DRIVE_DIR", "MACHINE", "drive.mount",
               "torch.cuda.is_available", "repo.zip", "cache.zip", "requirements.txt",
               "pipeline grid --shard", "paths.work=/content/work", "paths.runs=", "pipeline evaluate --all"):
         assert s in src, s
