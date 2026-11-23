@@ -21,3 +21,9 @@ grid: 162 cells, shard ((0,), 1), runs root E:\Projects\major\work\runs, gpu NVI
 [p1_rwf/r2plus1d/seed0] epoch 1: train_loss 0.6913 val_loss 0.4111 val_auc 0.9281 (260.19s)
 [p1_rwf/r2plus1d/seed0] epoch 2: train_loss 0.5149 val_loss 0.6756 val_auc 0.9049 (248.81s)
 [p1_rwf/r2plus1d/seed0] epoch 3: train_loss 0.5074 val_loss 0.5837 val_auc 0.8867 (249.38s)
+=== 11/23/2026 22:12:41 restart (detached): one-day grid, MotionLite seed0 then MobileNetV3-TSM seed0 ===
+grid: 5 cells, shard ((0,), 1), runs root E:\Projects\major\work\runs, gpu NVIDIA GeForce RTX 4050 Laptop GPU
+[1/5] run p2_all/motionlite/seed0 (priority 1)
+[p2_all/motionlite/seed0] epoch 1: train_loss 0.6557 val_loss 0.5984 val_auc 0.7942 (106.67s)
+[p2_all/motionlite/seed0] epoch 2: train_loss 0.5109 val_loss 0.5309 val_auc 0.8301 (101.22s)
+[p2_all/motionlite/seed0] epoch 3: train_loss 0.4118 val_loss 0.4666 val_auc 0.8658 (107.08s)

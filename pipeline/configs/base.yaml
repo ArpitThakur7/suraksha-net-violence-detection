@@ -3,7 +3,7 @@ paths:
   runs: work/runs     # run dirs; absolute allowed (Colab: shared Drive folder)
   datasets: datasets
   rwf_root: datasets/public/rwf2000/RWF-2000
-  handoff: handoff
+  handoff: datasets/metadata/semester_split   # semester split metadata, read by the audit (pipeline/data/ingest.py)
 cache:
   fps: 15
   short_side: 256
