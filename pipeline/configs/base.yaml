@@ -1,5 +1,6 @@
 paths:
   work: work
+  runs: work/runs     # run dirs; absolute allowed (Colab: shared Drive folder)
   datasets: datasets
   rwf_root: datasets/public/rwf2000/RWF-2000
   handoff: handoff
@@ -34,6 +35,7 @@ train:
   workers: 4
   deterministic: true
   max_epochs: 40
+  keep_last: true    # false: delete last.pt once DONE is written (the grid sets false)
   patience: 6
   selection:
     metric: val_roc_auc

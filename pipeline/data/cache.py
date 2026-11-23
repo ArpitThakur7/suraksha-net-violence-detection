@@ -16,7 +16,7 @@ from PIL import Image
 
 from pipeline.config import load_config, run_metadata
 from pipeline.data.video import decode_frames
-from pipeline.paths import ROOT, WORK
+from pipeline.paths import ROOT, WORK, work_dir
 
 
 def cache_key(cfg) -> str:
@@ -24,8 +24,7 @@ def cache_key(cfg) -> str:
 
 
 def cache_dir(cfg) -> Path:
-    work = Path(cfg.get("paths", {}).get("work", WORK))
-    return work / "cache" / cache_key(cfg)
+    return work_dir(cfg) / "cache" / cache_key(cfg)
 
 
 def _file(clip_id, cfg) -> Path:

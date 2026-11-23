@@ -36,7 +36,7 @@ from pipeline.config import DEFAULT_CONFIG, load_config, run_metadata
 from pipeline.data.dataset import make_loader
 from pipeline.data.splits import load_protocol
 from pipeline.models import MODEL_INPUT, MODEL_NAMES, MODEL_NORM, build_model
-from pipeline.paths import ROOT
+from pipeline.paths import runs_root
 
 # Per-model micro-batch from the steady-state memory pilot (work/bench/memory.csv, RTX 4050 6 GB).
 DEFAULT_BATCH = {"cnn_lstm": 16, "mnv3_tsm": 8, "motionlite": 8, "motionlite[effb0]": 4,
@@ -55,19 +55,22 @@ def default_batch(model: str, model_kw: dict | None = None) -> int:
     return DEFAULT_BATCH["motionlite[effb0]" if effb0 else model]
 
 
-def variant_name(model: str, model_kw: dict | None = None) -> str:
-    """model + "__k-v" for every model kwarg that differs from the constructor default (sorted)."""
+def variant_name(model: str, model_kw: dict | None = None, overrides=()) -> str:
+    """model + "__k-v" for every model kwarg that differs from the constructor default (sorted),
+    then "__key-val" for every naming config override such as clip.T=8 (sorted)."""
     mod, cls = _MODEL_CLASS[model]
     params = inspect.signature(getattr(importlib.import_module(mod), cls).__init__).parameters
     defaults = {k: p.default for k, p in params.items() if p.default is not inspect.Parameter.empty}
     diff = sorted((k, v) for k, v in (model_kw or {}).items() if k not in defaults or defaults[k] != v)
-    return "__".join([model] + [f"{k}-{v}" for k, v in diff])
+    ovs = sorted(tuple(o.split("=", 1)) for o in overrides)
+    return "__".join([model] + [f"{k}-{v}" for k, v in diff] + [f"{k.strip()}-{v.strip()}" for k, v in ovs])
 
 
-def run_dir(cfg, protocol: str, model: str, seed: int, model_kw: dict | None = None) -> Path:
-    work = Path(cfg["paths"]["work"])
-    work = work if work.is_absolute() else ROOT / work
-    return work / "runs" / protocol / variant_name(model, model_kw) / f"seed{seed}"
+def run_dir(cfg, protocol: str, model: str, seed: int, model_kw: dict | None = None,
+            overrides=()) -> Path:
+    """runs_root(cfg)/protocol/variant/seedN; `overrides` are the config overrides that name the
+    variant (e.g. the grid's clip.T=8 ablation), not every --set."""
+    return runs_root(cfg) / protocol / variant_name(model, model_kw, overrides) / f"seed{seed}"
 
 
 def epoch_seed(seed: int, epoch: int) -> int:
@@ -170,6 +173,7 @@ def train_run(cfg, protocol: str, model: str, seed: int, out_dir: Path,
     marker) returns the saved summary without training."""
     out = Path(out_dir)
     if (out / "DONE").exists():
+        _drop_last(out, cfg)
         return json.loads((out / "val_summary.json").read_text(encoding="utf-8"))
     model_kw = dict(model_kw or {})
     tc = cfg["train"]
@@ -284,7 +288,15 @@ def _fit(cfg, protocol, model, seed, out, model_kw, T, crop, batch, accum) -> di
                "metrics": metrics, "epochs_run": len(rows)}
     _write_json(summary, out / "val_summary.json")
     (out / "DONE").write_text("", encoding="utf-8")
+    _drop_last(out, cfg)
     return summary
+
+
+def _drop_last(out: Path, cfg) -> None:
+    """train.keep_last=false: a finished run needs only best.pt, so last.pt (weights + optimizer
+    state) is deleted once DONE exists. Saves Drive space on Colab."""
+    if not cfg["train"].get("keep_last", True):
+        (out / "last.pt").unlink(missing_ok=True)
 
 
 def main(argv=None) -> int:

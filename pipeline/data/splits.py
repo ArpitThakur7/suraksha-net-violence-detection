@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 import pandas as pd
 
-from pipeline.paths import ROOT
+from pipeline.paths import work_dir
 
 SPLITS = ("train", "val", "test")
 COLS = ["clip_id", "path", "dataset", "label", "global_group", "shared_source", "split"]
@@ -43,8 +43,7 @@ class LockError(Exception):
 
 
 def _work(cfg) -> Path:
-    p = Path(cfg["paths"]["work"])
-    return p if p.is_absolute() else ROOT / p
+    return work_dir(cfg)
 
 
 def _splits_dir(cfg) -> Path:

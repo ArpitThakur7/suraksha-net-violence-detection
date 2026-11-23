@@ -55,3 +55,17 @@ def test_tiny_videos_decodable(tiny_videos):
                 assert s.codec_context.pix_fmt == "gray"
             else:
                 assert s.codec_context.pix_fmt == "yuv420p"
+
+
+def test_git_commit_falls_back_to_file(tmp_path, monkeypatch):
+    import pipeline.config as Cf
+    (tmp_path / "GIT_COMMIT").write_text("abc123\n")
+    monkeypatch.setattr(Cf, "ROOT", tmp_path)
+    monkeypatch.setattr(Cf.subprocess, "run", lambda *a, **k: (_ for _ in ()).throw(OSError("no git")))
+    assert Cf._git_commit() == "abc123"
+
+
+def test_base_paths_and_keep_last():
+    cfg = load_config()
+    assert cfg["paths"]["runs"] == "work/runs"
+    assert cfg["train"]["keep_last"] is True

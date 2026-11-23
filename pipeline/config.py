@@ -67,12 +67,17 @@ _PIP_HASH = None
 
 
 def _git_commit() -> str:
+    """HEAD of the repo; falls back to ROOT/GIT_COMMIT, which `grid --bundle` writes into repo.zip
+    (the Colab copy has no .git)."""
     try:
         r = subprocess.run(["git", "rev-parse", "HEAD"], cwd=ROOT, capture_output=True,
                            text=True, timeout=20)
-        return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else "unknown"
+        if r.returncode == 0 and r.stdout.strip():
+            return r.stdout.strip()
     except Exception:
-        return "unknown"
+        pass
+    f = ROOT / "GIT_COMMIT"
+    return f.read_text(encoding="utf-8").strip() if f.exists() else "unknown"
 
 
 def _pip_hash() -> str:

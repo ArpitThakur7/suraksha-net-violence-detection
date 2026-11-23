@@ -1,0 +1,4 @@
+# Extra packages for Google Colab (it already ships torch, torchvision, numpy, pandas,
+# scikit-learn, scipy, matplotlib, Pillow). The laptop environment is set up separately.
+av>=12          # PyAV: imported by pipeline.data.video (pulled in by the frame cache module)
+pyyaml>=6       # configs (normally preinstalled on Colab; listed so the install is explicit)

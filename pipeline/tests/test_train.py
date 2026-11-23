@@ -179,3 +179,12 @@ def test_variant_and_batch_defaults():
     assert T.variant_name("cnn_lstm", None) == "cnn_lstm"
     assert T.default_batch("motionlite", {"backbone": "effb0"}) == 4
     assert T.default_batch("mvit_s", {}) == 2 and T.default_batch("cnn_lstm", {}) == 16
+
+
+def test_keep_last_false_deletes_last_pt(setup):
+    cfg, tmp = setup
+    cfg["train"].update(max_epochs=1, keep_last=False)
+    out = tmp / "run"
+    _run(cfg, out)
+    assert (out / "DONE").exists() and (out / "best.pt").exists()
+    assert not (out / "last.pt").exists()

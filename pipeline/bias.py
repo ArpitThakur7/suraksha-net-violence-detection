@@ -30,7 +30,8 @@ import pandas as pd
 
 from pipeline import stats
 from pipeline.config import DEFAULT_CONFIG, load_config
-from pipeline.evaluate import _work, evaluate_run
+from pipeline.evaluate import evaluate_run
+from pipeline.paths import runs_root, work_dir
 from pipeline.train import run_dir, train_run
 
 PROTOCOLS = ("p4_random", "p4_grouped", "p2_all_leaky")
@@ -191,7 +192,7 @@ def run_bias(cfg, model: str = "mnv3_tsm", seeds=(0, 1, 2)) -> dict:
     c = {"left_name": "shared_source clips", "right_name": "other clips",
          "left_acc": _acc(leaky[sh]), "right_acc": _acc(leaky[~sh]), "gap": cgap, "lo": clo, "hi": chi,
          "n": f"{int(sh.sum())}/{int((~sh).sum())} clips pooled over seeds"}
-    res = {"a": a, "c": c, "leak": threshold_leak_rows(_work(cfg) / "runs")}
+    res = {"a": a, "c": c, "leak": threshold_leak_rows(runs_root(cfg))}
 
     rows = []
     for part, g in (("a", a), ("c", c)):
@@ -202,7 +203,7 @@ def run_bias(cfg, model: str = "mnv3_tsm", seeds=(0, 1, 2)) -> dict:
     for r in res["leak"]:
         rows += [{"part": "b", "label": r["run"], "metric": k, "value": v}
                  for k, v in r.items() if k != "run"]
-    rep = _work(cfg) / "reports"
+    rep = work_dir(cfg) / "reports"
     rep.mkdir(parents=True, exist_ok=True)
     pd.DataFrame(rows, columns=["part", "label", "metric", "value", "ci_lo", "ci_hi"]).to_csv(
         rep / "bias.csv", index=False)

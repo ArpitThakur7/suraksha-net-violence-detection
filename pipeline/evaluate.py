@@ -28,7 +28,7 @@ from pipeline.config import DEFAULT_CONFIG, load_config
 from pipeline.data.dataset import make_loader
 from pipeline.data.splits import load_protocol
 from pipeline.models import build_model
-from pipeline.paths import ROOT
+from pipeline.paths import runs_root
 from pipeline.train import _atomic, _evaluate
 
 CI_METRICS = ("accuracy", "f1", "roc_auc")
@@ -121,16 +121,11 @@ def evaluate_run(run_dir: Path, cfg, views: int = 1) -> dict:
     return res
 
 
-def _work(cfg) -> Path:
-    w = Path(cfg["paths"]["work"])
-    return w if w.is_absolute() else ROOT / w
-
-
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="pipeline evaluate")
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--run", type=Path, help="run directory")
-    g.add_argument("--all", action="store_true", help="every finished run under WORK/runs")
+    g.add_argument("--all", action="store_true", help="every finished run under paths.runs")
     ap.add_argument("--views", type=int, default=1, choices=(1, 3))
     ap.add_argument("--set", dest="overrides", action="append", default=[], metavar="KEY=VAL")
     ap.add_argument("--config", default=DEFAULT_CONFIG)
@@ -141,7 +136,7 @@ def main(argv=None) -> int:
         res = evaluate_run(a.run, cfg, a.views)
         print(json.dumps({"pooled": res["pooled"]["at_val_thr"], "ci": res["pooled"]["ci"]}, indent=2))
         return 0
-    for done in sorted((_work(cfg) / "runs").glob("**/DONE")):
+    for done in sorted(runs_root(cfg).glob("**/DONE")):
         d = done.parent
         if (d / f"test_metrics{sfx}.json").exists():
             print(f"skip {d} (already evaluated)")

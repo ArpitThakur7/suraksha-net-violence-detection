@@ -1,0 +1,71 @@
+# Experiment grid (spec section 6), expanded by pipeline/grid.py:expand_grid.
+# Each block crosses models x protocols x seeds x variants. A variant may set
+#   model_kw:  MotionLite kwargs (name the run: motionlite__diff-False)
+#   overrides: config overrides that name the run (motionlite__clip.T-8)
+#   setup:     config overrides that do not name the run (e.g. a smaller micro-batch)
+# priority: lower runs first (1 = main tables + bias study, 2 = MotionLite model ablations,
+#           3 = input ablations, extra headline seeds, single-dataset p1_sfd / p1_avd).
+# Expected count: 162 cells (see pipeline/tests/test_grid.py::test_expand_counts).
+
+# Applied to the config of every grid run (CLI --set still wins).
+defaults:
+  - train.keep_last=false        # delete last.pt after DONE; only in-progress runs keep it
+
+# Fixed learning rates, no lr pre-step: base.yaml train.lr = 3e-4 for every model except these.
+model_setup:
+  mvit_s: [train.lr=0.0001]
+
+protocol_sets:
+  p1_main: &p1_main [p1_rwf]
+  p1_other: &p1_other [p1_sfd, p1_avd]
+  headline: &headline [p2_all, p3_no_rwf, p3_no_sfd, p3_no_avd]
+  ablation: &ablation [p2_all, p3_no_rwf]
+  bias: &bias [p4_random, p4_grouped, p2_all_leaky]
+
+blocks:
+  # M2, M3, M5 on all 7 protocol settings; M1, M4 on P2 + P3. Seeds 0-2.
+  - name: main_p1_rwf
+    models: [mnv3_tsm, r2plus1d, motionlite]
+    protocols: *p1_main
+    seeds: [0, 1, 2]
+    priority: 1
+  - name: main_headline
+    models: [cnn_lstm, mnv3_tsm, r2plus1d, mvit_s, motionlite]
+    protocols: *headline
+    seeds: [0, 1, 2]
+    priority: 1
+  # Bias study (pipeline/bias.py run_bias trains these same run dirs; DONE-skip shares them).
+  - name: bias
+    models: [mnv3_tsm]
+    protocols: *bias
+    seeds: [0, 1, 2]
+    priority: 1
+  - name: motionlite_model_ablations
+    models: [motionlite]
+    protocols: *ablation
+    seeds: [0, 1, 2]
+    priority: 2
+    variants:
+      - {model_kw: {diff: false}}
+      - {model_kw: {tsm: false}}
+      - {model_kw: {pool: avg}}
+      - {model_kw: {fusion: early}}
+  - name: motionlite_input_ablations
+    models: [motionlite]
+    protocols: *ablation
+    seeds: [0, 1, 2]
+    priority: 3
+    variants:
+      - {overrides: [clip.T=8]}
+      - {overrides: [clip.T=32], setup: [train.batch=4]}   # 2x frames: halve the micro-batch (6 GB laptop)
+      - {overrides: [clip.crop=160]}
+  - name: headline_extra_seeds
+    models: [r2plus1d, mvit_s, motionlite]
+    protocols: *headline
+    seeds: [3, 4]
+    priority: 3
+  - name: main_p1_other
+    models: [mnv3_tsm, r2plus1d, motionlite]
+    protocols: *p1_other
+    seeds: [0, 1, 2]
+    priority: 3
