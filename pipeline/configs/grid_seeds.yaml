@@ -1,0 +1,35 @@
+# Seeds 0-2 of the fine-tuned models on the headline protocols (seed-0 runs already exist and are
+# skipped via DONE). Frozen probes are deterministic (lbfgs logistic regression) and need no seeds.
+# Priority = run order: 1 VideoMAE-FT (best model), 2 MotionLite +/- distillation, 3 MobileNetV3-TSM.
+defaults:
+  - train.keep_last=false
+
+model_setup:
+  videomae_ft: [train.lr=0.00005]
+
+protocol_sets:
+  head: &head [p2_all, p1_rwf, p3_no_rwf, p3_no_sfd, p3_no_avd]
+
+blocks:
+  - name: videomae_ft
+    models: [videomae_ft]
+    protocols: *head
+    seeds: [0, 1, 2]
+    priority: 1
+  - name: motionlite
+    models: [motionlite]
+    protocols: *head
+    seeds: [0, 1, 2]
+    priority: 2
+  - name: motionlite_distill
+    models: [motionlite]
+    protocols: *head
+    seeds: [0, 1, 2]
+    priority: 2
+    variants:
+      - {overrides: [train.distill_teacher=videomae]}
+  - name: mnv3_tsm
+    models: [mnv3_tsm]
+    protocols: *head
+    seeds: [0, 1, 2]
+    priority: 3
