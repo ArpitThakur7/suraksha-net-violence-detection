@@ -234,13 +234,16 @@ def test_bundle(tmp_path):
 
 
 def test_notebook_valid():
-    nb = json.loads((ROOT / "colab" / "train.ipynb").read_text(encoding="utf-8"))
+    nb = json.loads((ROOT / "colab" / "suraksha_cloud_runs.ipynb").read_text(encoding="utf-8"))
     assert nb["nbformat"] == 4 and nb["cells"]
     src = "\n".join("".join(c["source"]) for c in nb["cells"])
-    for s in ('SHARDS = "2,5"', "N_SHARDS = 7", "DRIVE_DIR", "MACHINE", "drive.mount",
-              "torch.cuda.is_available", "repo.zip", "cache.zip", "requirements.txt",
-              "pipeline grid --shard", "paths.work=/content/work", "paths.runs=", "pipeline evaluate --all"):
+    for s in ('PART = "motionlite_kd"', 'SEEDS = "1,2"', "DRIVE_DIR", "drive.mount", "torch.cuda.is_available",
+              "CODE_B64", '"pipeline", "fetch"', "zenodo.org/records/15687512", "pipeline cache",
+              "pipeline grid --grid pipeline/configs/grid_seeds.yaml", "--seeds {SEEDS}", "paths.runs="):
         assert s in src, s
+    for c in nb["cells"]:   # a cell magic must be the first line of its cell
+        lines = "".join(c["source"]).splitlines()
+        assert not any(l.startswith("%%") for l in lines[1:]), lines[0]
 
 
 def test_requirements_minimal():

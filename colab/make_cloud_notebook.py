@@ -62,16 +62,20 @@ def build():
         md(f"""
 # Suraksha-Net: remaining training runs on Colab
 
-**Before running:** Runtime → Change runtime type → **L4 GPU** (or A100) → Save.
-Then set `PART` in the first code cell and choose **Runtime → Run all**.
+**Before running:** Runtime → Change runtime type → **T4 GPU** → Save (free Colab; L4/A100 also work).
+TPU does not work (the code is PyTorch on CUDA). Then set `PART` and `SEEDS` in the first code cell
+and choose **Runtime → Run all**.
 
-Each Google account runs a different `PART`:
+Each Google account runs a different `PART` (and `SEEDS`):
 
-| Account | PART | Runs |
-|---|---|---|
-| Colab 1 | `"motionlite_kd"` | MotionLite + VideoMAE distillation, seeds 1–2, 5 protocols (10 runs) |
-| Colab 2 | `"motionlite"` | MotionLite, seeds 1–2, 5 protocols (10 runs) |
-| Colab 3 | `"mnv3_tsm"` | MobileNetV3-TSM, seeds 1–2, 5 protocols (10 runs) |
+| Account | PART | SEEDS | Runs |
+|---|---|---|---|
+| Colab 1 | `"motionlite_kd"` | `"1,2"` | MotionLite + VideoMAE distillation, 5 protocols (10 runs) |
+| Colab 2 | `"motionlite"` | `"1,2"` | MotionLite, 5 protocols (10 runs) |
+| Colab 3 | `"mnv3_tsm"` | `"1"` | MobileNetV3-TSM seed 1, 5 protocols (5 runs; the laptop does seed 2) |
+
+Free Colab gives 2 CPU cores, so a run takes roughly twice as long as on the laptop, and the GPU
+session can end after a few hours. Nothing trained is lost: see below.
 
 What it does: downloads RWF-2000 (Zenodo, by the dataset author, CC-BY-4.0), SFD and AIRTLab (GitHub);
 checks every video against the project's SHA-256 manifest; rebuilds the frame cache; trains; saves runs
@@ -85,6 +89,7 @@ Embedded code: commit `{commit[:10]}`, {n} files.
         code(f"""
 # ===== SETTINGS: change PART for each Google account =====
 PART = "motionlite_kd"      # one of: {parts}
+SEEDS = "1,2"               # "1,2", or "1" / "2" to split a PART between two accounts
 DRIVE_DIR = "/content/drive/MyDrive/suraksha_cloud"
 """),
         code(f"""
@@ -92,7 +97,8 @@ DRIVE_DIR = "/content/drive/MyDrive/suraksha_cloud"
 import os, sys, subprocess, torch
 PARTS = {json.dumps(PARTS)}
 assert PART in PARTS, f"PART must be one of {{list(PARTS)}}"
-assert torch.cuda.is_available(), "No GPU: Runtime > Change runtime type > L4 GPU, then Run all again"
+assert torch.cuda.is_available(), "No GPU: Runtime > Change runtime type > T4 GPU, then Run all again"
+assert set(SEEDS.split(",")) <= {{"1", "2"}}, 'SEEDS must be "1,2", "1" or "2"' 
 print("GPU:", torch.cuda.get_device_name(0), "| CPUs:", os.cpu_count())
 from google.colab import drive
 drive.mount("/content/drive")
@@ -144,14 +150,16 @@ assert r.returncode == 0, "Some videos are missing: send this output to Arpit / 
         code("""
 #@title 7. Train (several hours; results go to Google Drive as each run finishes)
 %cd /content/repo
-W = max(2, min(8, os.cpu_count() - 2))
+CPUS = os.cpu_count()
+W = max(2, min(8, CPUS - 1))      # free Colab: 2 cores -> 2 train workers
+VW = 1 if CPUS <= 4 else 2
 ONLY = PARTS[PART]
-!python -u -m pipeline grid --grid pipeline/configs/grid_seeds.yaml --only "{ONLY}" --seeds 1,2 --set "paths.runs={DRIVE_DIR}/runs" --set train.workers={W} --set train.val_workers=2 2>&1 | tee -a "{DRIVE_DIR}/log_{PART}.txt"
+!python -u -m pipeline grid --grid pipeline/configs/grid_seeds.yaml --only "{ONLY}" --seeds {SEEDS} --set "paths.runs={DRIVE_DIR}/runs" --set train.workers={W} --set train.val_workers={VW} 2>&1 | tee -a "{DRIVE_DIR}/log_{PART}.txt"
 """, form=True),
         code("""
 #@title 8. Package the results (small files only) -> Google Drive
 import glob
-out = f"{DRIVE_DIR}/results_{PART}.zip"
+out = f"{DRIVE_DIR}/results_{PART}_seeds{SEEDS.replace(',', '')}.zip"
 n = 0
 with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
     for f in glob.glob(f"{DRIVE_DIR}/runs/**/*", recursive=True):
@@ -163,7 +171,7 @@ print("Download this zip from Google Drive (MyDrive/suraksha_cloud) and give it 
 """, form=True),
     ]
     nb = {"nbformat": 4, "nbformat_minor": 5,
-          "metadata": {"accelerator": "GPU", "colab": {"provenance": [], "gpuType": "L4"},
+          "metadata": {"accelerator": "GPU", "colab": {"provenance": [], "gpuType": "T4"},
                        "kernelspec": {"name": "python3", "display_name": "Python 3"},
                        "language_info": {"name": "python"}},
           "cells": cells}
