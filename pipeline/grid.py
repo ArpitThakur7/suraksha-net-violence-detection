@@ -101,12 +101,14 @@ def parse_shard(s: str) -> tuple[tuple[int, ...], int]:
     return ids, n
 
 
-def select_cells(cells, shard=((0,), 1), only: str | None = None) -> list[Cell]:
-    """Cells of the given shard(s) whose id contains `only`, in (priority, seed, grid order)."""
+def select_cells(cells, shard=((0,), 1), only: str | None = None, seeds=None) -> list[Cell]:
+    """Cells of the given shard(s) whose id contains `only` (and whose seed is in `seeds`, if
+    given), in (priority, seed, grid order)."""
     ids, n = shard
     ids = {ids} if isinstance(ids, int) else set(ids)
     keep = [(i, c) for i, c in enumerate(cells)
-            if shard_of(c.id, n) in ids and (not only or only in c.id)]
+            if shard_of(c.id, n) in ids and (not only or only in c.id)
+            and (seeds is None or c.seed in seeds)]
     return [c for _, c in sorted(keep, key=lambda t: (t[1].priority, t[1].seed, t[0]))]
 
 
@@ -146,11 +148,11 @@ def status(out: Path) -> str:
     return "partial" if (out / "last.pt").exists() else "todo"
 
 
-def run_grid(cells, cfg, shard=((0,), 1), only: str | None = None) -> list[Cell]:
+def run_grid(cells, cfg, shard=((0,), 1), only: str | None = None, seeds=None) -> list[Cell]:
     """Train + evaluate every selected cell that is not finished. A failing cell is reported and the
     grid moves on. Returns the failed cells."""
     import torch
-    sel = select_cells(cells, shard, only)
+    sel = select_cells(cells, shard, only, seeds)
     gpu = torch.cuda.get_device_name(0) if torch.cuda.is_available() else "cpu"
     print(f"grid: {len(sel)} cells, shard {shard}, runs root {runs_root(cfg)}, gpu {gpu}", flush=True)
     failed = []
@@ -328,6 +330,7 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(prog="pipeline grid")
     ap.add_argument("--shard", default="0/1", help="i/n or i,j/n (union of shards), e.g. 1,2/7")
     ap.add_argument("--only", default=None, help="run only cells whose id contains this, e.g. motionlite")
+    ap.add_argument("--seeds", default=None, help="comma-separated seeds to run, e.g. 1,2")
     ap.add_argument("--dry-run", action="store_true", help="print cells, status and estimated hours")
     ap.add_argument("--bundle", action="store_true", help="write work/colab_bundle for Colab")
     ap.add_argument("--set", dest="overrides", action="append", default=[], metavar="KEY=VAL",
@@ -352,4 +355,5 @@ def main(argv=None) -> int:
     if a.dry_run:
         dry_run(cells, cfg, shard, a.only)
         return 0
-    return 1 if run_grid(cells, cfg, shard, a.only) else 0
+    seeds = {int(x) for x in a.seeds.split(",")} if a.seeds else None
+    return 1 if run_grid(cells, cfg, shard, a.only, seeds) else 0
