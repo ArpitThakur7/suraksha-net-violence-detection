@@ -19,3 +19,4 @@ work/.pytest_tmp*/
 .claude/session-memory/
 work/runs/
 work/.pytest_tmp/
+reports/preview/
