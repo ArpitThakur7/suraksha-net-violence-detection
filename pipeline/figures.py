@@ -31,6 +31,7 @@ MODEL_STYLE = {
     "mvit_s": ("#e34948", "X", "MViT-S (fine-tuned)"),
     "motionlite_kd": ("#008300", "*", "MotionLite + VideoMAE distillation (ours)"),
     "videomae_ft": ("#2a78d6", "h", "VideoMAE-B (partially fine-tuned)"),
+    "videomae+clip": ("#6250d6", "p", "VideoMAE + CLIP (frozen)"),
 }
 
 
@@ -155,30 +156,52 @@ def fig_confusion(f: Path, title: str, out: Path):
     plt.close(fig)
 
 
-def fig_tradeoff(summary: pd.DataFrame, speed: pd.DataFrame, out: Path, protocol: str = "p2_all"):
-    """Pooled test ROC-AUC against GPU latency per clip (log x): the accuracy / cost trade-off."""
+LABEL_OFFSET = {"motionlite_kd": (8, 6), "motionlite": (8, -16), "mnv3_tsm": (-8, 8), "videomae_ft": (8, 2),
+                "videomae": (8, -12), "clip": (8, -12), "videomae+clip": (8, 6), "r2plus1d": (-8, -16)}
+
+
+def fig_tradeoff(summary: pd.DataFrame, speed: pd.DataFrame, out: Path, protocol: str = "p2_all",
+                 device: str = "cpu"):
+    """Pooled test ROC-AUC against per-clip latency (log x) on `device` ("cpu": 4 threads, fp32 --
+    the edge/CCTV case; "cuda": fp16 on the laptop GPU)."""
     import matplotlib.pyplot as plt
+    from matplotlib.ticker import FuncFormatter, LogLocator, NullFormatter
     d = summary[summary.protocol == protocol].assign(model=summary.model.map(canon))
     sp = speed.set_index("model")
-    fig, ax = plt.subplots(figsize=(6, 4.2), facecolor=SURFACE)
+    col = f"{device}_ms"
+    fig, ax = plt.subplots(figsize=(6.6, 4.4), facecolor=SURFACE)
     _style(ax, plt)
     for r in d.itertuples():
         arch = {"motionlite_kd": "motionlite", "videomae_ft": "videomae"}.get(r.model, r.model)
-        if arch not in sp.index or not np.isfinite(sp.loc[arch, "cuda_ms"]):
+        if "+" in arch:   # concatenated features: both backbones run
+            parts = arch.split("+")
+            if not all(a in sp.index for a in parts):
+                continue
+            x, params = sum(float(sp.loc[a, col]) for a in parts), sum(float(sp.loc[a, "params_m"]) for a in parts)
+        elif arch in sp.index:
+            x, params = float(sp.loc[arch, col]), float(sp.loc[arch, "params_m"])
+        else:
             continue
         c, mk, lab = MODEL_STYLE.get(r.model, MODEL_STYLE["videomae"])
-        x = float(sp.loc[arch, "cuda_ms"])
         frozen = r.kind == "frozen probe"
         ax.errorbar(x, r.roc_auc, yerr=[[r.roc_auc - r.auc_lo], [r.auc_hi - r.roc_auc]], fmt="none",
-                    ecolor=c, elinewidth=1.5, alpha=0.8)
+                    ecolor=c, elinewidth=1.5, alpha=0.6)
         ax.scatter(x, r.roc_auc, s=90, marker=mk, facecolor=c if frozen else SURFACE, edgecolor=c,
                    linewidth=2, zorder=3)
-        ax.annotate(f"{lab.split(' (')[0]}
-{sp.loc[arch, 'params_m']:.1f} M params", (x, r.roc_auc),
-                    xytext=(7, -4), textcoords="offset points", fontsize=7.5, color=INK2)
+        name = lab.split(" (")[0].replace("MotionLite + VideoMAE distillation", "MotionLite + distillation")
+        name += " (ft)" if not frozen else ""
+        dx, dy = LABEL_OFFSET.get(r.model, (8, -4))
+        ax.annotate(f"{name}, {params:.0f}M", (x, r.roc_auc), xytext=(dx, dy), textcoords="offset points",
+                    fontsize=7.5, color=INK2, ha="left" if dx > 0 else "right")
     ax.set_xscale("log")
-    ax.set_xlabel("GPU latency per 16-frame clip, ms (log scale, RTX 4050 laptop, fp16)", color=INK2)
-    ax.set_ylabel("Test ROC-AUC, all three pooled", color=INK2)
+    lo, hi = ax.get_xlim()
+    ax.set_xlim(lo / 1.9, hi * 1.5)   # room for the labels at both ends
+    ax.xaxis.set_major_locator(LogLocator(base=10, subs=(1, 2, 5)))
+    ax.xaxis.set_major_formatter(FuncFormatter(lambda v, _: f"{v:g}"))
+    ax.xaxis.set_minor_formatter(NullFormatter())
+    where = "CPU, 4 threads, fp32" if device == "cpu" else "laptop GPU, fp16"
+    ax.set_xlabel(f"Latency per 16-frame clip, ms (log scale, {where})", color=INK2)
+    ax.set_ylabel("Test ROC-AUC, all three datasets pooled", color=INK2)
     ax.set_title("Accuracy vs cost (filled = frozen backbone, hollow = fine-tuned)", color=INK, loc="left", fontsize=10)
     fig.tight_layout()
     fig.savefig(out, dpi=200, facecolor=SURFACE)
@@ -197,8 +220,10 @@ def make_all(cfg) -> list[Path]:
         made.append(out / "fig_auc_protocols.png")
     speed = work_dir(cfg) / "bench" / "speed.csv"
     if summ.exists() and speed.exists():
-        fig_tradeoff(pd.read_csv(summ), pd.read_csv(speed), out / "fig_tradeoff_p2_all.png")
-        made.append(out / "fig_tradeoff_p2_all.png")
+        for dev in ("cpu", "cuda"):
+            f = out / f"fig_tradeoff_p2_all_{dev}.png"
+            fig_tradeoff(pd.read_csv(summ), pd.read_csv(speed), f, device=dev)
+            made.append(f)
     for p in ("p1_rwf", "p2_all", "p3_no_rwf", "p3_no_sfd", "p3_no_avd"):
         if fig_roc(cfg, p, out / f"fig_roc_{p}.png"):
             made.append(out / f"fig_roc_{p}.png")
