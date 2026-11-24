@@ -250,7 +250,9 @@ def _fit(cfg, protocol, model, seed, out, model_kw, T, crop, batch, accum) -> di
         opt, _lr_lambda(int(tc["warmup_epochs"]) * steps_per_epoch, max_epochs * steps_per_epoch))
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp)
     crit = make_criterion(cfg, protocol)
-    val_loader = make_loader(m, "val", cfg, norm, train=False, batch_size=batch, seed=seed)
+    # val workers persist through training while idle; keep them few so RAM goes to train workers
+    val_loader = make_loader(m, "val", cfg, norm, train=False, batch_size=batch, seed=seed,
+                             workers=int(tc.get("val_workers", tc.get("workers", 4))))
     val_df = m[m["split"] == "val"].set_index("clip_id")
 
     best = {"auc": -math.inf, "loss": math.inf, "epoch": 0, "since": 0}

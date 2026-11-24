@@ -32,7 +32,8 @@ train:
   batch: null        # micro-batch; null = per-model DEFAULT_BATCH in train.py (accum = effective_batch / batch)
   pretrained: true
   device: auto       # auto = cuda if available; AMP is used only on cuda
-  workers: 4
+  workers: 4         # train loader workers (the GPU waits on JPEG decode + augmentation below ~8)
+  val_workers: 2     # persistent val loader workers (idle during the train pass)
   deterministic: true
   max_epochs: 40
   keep_last: true    # false: delete last.pt once DONE is written (the grid sets false)

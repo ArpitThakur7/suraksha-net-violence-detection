@@ -3,9 +3,12 @@
 # Priority = run order: 1 VideoMAE-FT (best model), 2 MotionLite +/- distillation, 3 MobileNetV3-TSM.
 defaults:
   - train.keep_last=false
+  - train.workers=8              # speed only: light models leave the GPU ~20-40% busy with 4 workers
+  - train.val_workers=4
 
 model_setup:
-  videomae_ft: [train.lr=0.00005]
+  videomae_ft: [train.lr=0.00005, train.workers=4]   # GPU-bound: extra workers only add spawn time
+
 
 protocol_sets:
   head: &head [p2_all, p1_rwf, p3_no_rwf, p3_no_sfd, p3_no_avd]

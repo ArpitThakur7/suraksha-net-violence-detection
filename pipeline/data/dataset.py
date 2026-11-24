@@ -120,9 +120,9 @@ class ClipDataset(Dataset):
 
 def make_loader(manifest, split, cfg, norm, train, allow_test=False, balance_datasets=False,
                 batch_size: int | None = None, seed: int | None = None, view: int = 0,
-                views: int = 1) -> DataLoader:
+                views: int = 1, workers: int | None = None) -> DataLoader:
     ds = ClipDataset(manifest, split, cfg, norm, train, allow_test, seed=seed, view=view, views=views)
-    workers = int(cfg["train"].get("workers", 4))
+    workers = int(cfg["train"].get("workers", 4) if workers is None else workers)
     bs = int(batch_size or cfg["train"].get("effective_batch", 32))
     gen = torch.Generator()
     if seed is not None:
