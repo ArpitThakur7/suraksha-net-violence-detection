@@ -20,3 +20,6 @@ work/.pytest_tmp*/
 work/runs/
 work/.pytest_tmp/
 reports/preview/
+
+# dataset footage (RWF-2000 thumbnails) must not be redistributed
+work/manifest/near_duplicates_sheet.png
