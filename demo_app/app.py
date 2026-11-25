@@ -7,13 +7,19 @@ from threading import Lock
 from typing import Literal
 from uuid import uuid4
 
+import time
+
 import av
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, Response
-from pydantic import BaseModel
+from fastapi.responses import FileResponse, HTMLResponse, Response, StreamingResponse
+from pydantic import BaseModel, Field
 
 from .video import ROOT, analyze, profile
 from .alerts import SCHEMA, routes
+from .live import LiveMonitor
+
+SITE = ROOT / "site" / "suraksha_net.html"
+SAMPLES = Path(__file__).resolve().parent / "samples"
 
 DATA = Path(os.environ.get("SURAKSHA_STORAGE", Path(__file__).resolve().parent / "data")).resolve()
 LOCK = Lock()
@@ -47,15 +53,89 @@ async def lifespan(app):
         if "model" not in {r[1] for r in conn.execute("PRAGMA table_info(videos)")}:
             conn.execute("ALTER TABLE videos ADD COLUMN model TEXT DEFAULT 'Vishnu ResNet18-LSTM'")
     yield
+    monitor.stop()
 
 
 app = FastAPI(title="Suraksha-Net", lifespan=lifespan)
 app.include_router(routes(database))
+monitor = LiveMonitor(database)
 
 
 @app.get("/")
 def home():
+    """The project site, with the live monitor switched on because the API is reachable here.
+    site/suraksha_net.html is also published as a static page, so it carries no <html> wrapper."""
+    head = ('<!doctype html><html lang="en"><head><meta charset="utf-8">'
+            '<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">'
+            '<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}'
+            'body{margin:0}img{max-width:100%}[hidden]{display:none!important}</style></head><body>')
+    return HTMLResponse(head + SITE.read_text(encoding="utf-8") + "</body></html>")
+
+
+@app.get("/review")
+def review_page():
+    """The original upload-and-review screen for recorded MP4s."""
     return FileResponse(Path(__file__).with_name("index.html"))
+
+
+class LiveStart(BaseModel):
+    source: str = Field(min_length=1, max_length=500)
+    camera: str = Field(default="CAM-01", min_length=1, max_length=80)
+    location: str = Field(default="Main entrance", min_length=1, max_length=160)
+    loop: bool = True
+
+
+@app.get("/api/live/sources")
+def live_sources():
+    """Recordings that can be replayed as if they were a live camera."""
+    items = []
+    if SAMPLES.is_dir():
+        items += [{"name": p.name, "path": str(p)} for p in sorted(SAMPLES.iterdir())
+                  if p.suffix.lower() in {".mp4", ".avi", ".mkv", ".mov"}]
+    with database() as conn:
+        for row in conn.execute("SELECT id,name FROM videos ORDER BY rowid DESC LIMIT 20"):
+            path = DATA / (row["id"] + ".mp4")
+            if path.exists():
+                items.append({"name": row["name"] + " (uploaded)", "path": str(path)})
+    return {"recordings": items}
+
+
+@app.post("/api/live/start")
+def live_start(body: LiveStart):
+    try:
+        monitor.start(body.source.strip(), body.camera.strip(), body.location.strip(), body.loop)
+    except ValueError as error:
+        raise HTTPException(422, str(error)) from error
+    return monitor.status()
+
+
+@app.post("/api/live/stop")
+def live_stop():
+    monitor.stop()
+    return monitor.status()
+
+
+@app.get("/api/live/status")
+def live_status():
+    return monitor.status()
+
+
+@app.get("/api/live/stream")
+def live_stream():
+    """MJPEG preview of the camera (about 12 frames per second)."""
+    def frames():
+        last = None
+        idle = 0
+        while idle < 600:  # give up after ~60 s with no new frames
+            jpeg = monitor.frame()
+            if jpeg is not None and jpeg is not last:
+                last, idle = jpeg, 0
+                yield b"--frame\r\nContent-Type: image/jpeg\r\nContent-Length: " + str(len(jpeg)).encode() + b"\r\n\r\n" + jpeg + b"\r\n"
+            else:
+                idle += 1
+            time.sleep(0.08)
+    return StreamingResponse(frames(), media_type="multipart/x-mixed-replace; boundary=frame",
+                             headers={"Cache-Control": "no-store"})
 
 @app.get("/api/detector")
 def active_model():

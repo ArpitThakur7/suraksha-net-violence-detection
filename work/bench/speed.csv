@@ -1,0 +1,8 @@
+model,cuda_ms,gpu_peak_mb,params_m,gflops,cpu_ms,input,gpu
+motionlite,10.5,94,3.02,8.9,155.7,16x3x224x224,NVIDIA GeForce RTX 4050 Laptop GPU
+mnv3_tsm,7.8,84,2.97,6.9,97.0,16x3x224x224,NVIDIA GeForce RTX 4050 Laptop GPU
+cnn_lstm,6.4,124,11.97,58.0,295.4,16x3x224x224,NVIDIA GeForce RTX 4050 Laptop GPU
+r2plus1d,50.3,372,31.3,324.2,1352.5,16x3x224x224,NVIDIA GeForce RTX 4050 Laptop GPU
+mvit_s,61.8,295,34.23,128.4,733.4,16x3x224x224,NVIDIA GeForce RTX 4050 Laptop GPU
+videomae,25.4,386,86.23,270.1,1286.4,16x3x224x224,NVIDIA GeForce RTX 4050 Laptop GPU
+clip,21.9,389,86.19,269.6,911.2,8x3x224x224,NVIDIA GeForce RTX 4050 Laptop GPU

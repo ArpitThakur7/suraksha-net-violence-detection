@@ -42,10 +42,17 @@ python -m pipeline evaluate --all                  # (re)evaluate finished runs
 python -m uvicorn demo_app.app:app --host 127.0.0.1 --port 8741
 ```
 
-Open http://127.0.0.1:8741, upload an MP4 and adjust the threshold. Recordings and review
-decisions are stored in `demo_app/data/`. The detector is the baseline ResNet18-LSTM checkpoint in
-`demo_app/models/` (4-second windows, 2-second stride, 16 frames at 224 px). Extra packages:
-`demo_app/requirements.txt`.
+Open http://127.0.0.1:8741 for the project site with the **live monitor**: pick a webcam, an
+`rtsp://` CCTV stream or a recording (the demo sequence in `demo_app/samples/` is built from held-out
+RWF-2000 test clips) and press Start monitoring. Every second the distilled MotionLite model
+(`demo_app/models/motionlite_kd_p2_all.pt`, copied from `work/runs/p2_all/motionlite__train.distill_teacher-videomae/seed1`)
+scores the last 4 seconds; 3 of the last 5 windows at or above its threshold (0.51) raise an alert with a
+snapshot in the review queue. Code: `demo_app/live.py`. OpenCV is loaded from `.ml_deps/`.
+
+http://127.0.0.1:8741/review is the original upload screen: upload an MP4 and adjust the threshold.
+Recordings and review decisions are stored in `demo_app/data/`. That screen still uses the baseline
+ResNet18-LSTM checkpoint in `demo_app/models/` (4-second windows, 2-second stride, 16 frames at 224 px).
+Extra packages: `demo_app/requirements.txt`.
 
 ## Datasets
 

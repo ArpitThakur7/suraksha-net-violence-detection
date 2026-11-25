@@ -13,7 +13,7 @@ cases = {
 
 def main():
     with httpx.Client(base_url="http://127.0.0.1:8741", timeout=180, trust_env=False) as client:
-        assert "Recording review" in client.get("/").raise_for_status().text
+        assert "Recording review" in client.get("/review").raise_for_status().text
         existing = {item["name"]: item["id"] for item in client.get("/api/videos").raise_for_status().json()}
         checked = []
         for name, path in cases.items():
