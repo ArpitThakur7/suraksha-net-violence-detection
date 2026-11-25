@@ -10,7 +10,7 @@ fixed venue or deadline. The target is an IEEE / Scopus-indexed conference or jo
 contribution has to survive a reviewer who checks for leakage and for test-set tuning.
 
 The earlier work is not paper-grade. It used frozen 112 px ImageNet features and never trained on RWF.
-Vishnu's reported 84% picked its threshold on the test set. This pipeline replaces that work. It keeps
+The semester baseline's reported 84% picked its threshold on the test set. This pipeline replaces that work. It keeps
 the existing demo app (`suraksha/`) as the deployment target.
 
 ## 2. Paper shape (chosen approach)
@@ -178,7 +178,7 @@ code version.
 
 | ID | Model | Pretraining | Role |
 |---|---|---|---|
-| M1 | ResNet18 + LSTM (Vishnu's architecture) | ImageNet | continuity with the team's prior work |
+| M1 | ResNet18 + LSTM (semester baseline architecture) | ImageNet | continuity with the team's prior work |
 | M2 | MobileNetV3-L + TSM, average pooling | ImageNet | efficient 2D baseline |
 | M3 | R(2+1)D-18 (torchvision) | Kinetics-400 | 3D CNN baseline |
 | M4 | MViTv2-S (torchvision) | Kinetics-400 | transformer baseline (GPU-heavy; run on Colab if VRAM is short) |

@@ -233,19 +233,6 @@ def test_bundle(tmp_path):
     assert set(sizes) >= {"repo.zip", "cache.zip"}
 
 
-def test_notebook_valid():
-    nb = json.loads((ROOT / "colab" / "suraksha_cloud_runs.ipynb").read_text(encoding="utf-8"))
-    assert nb["nbformat"] == 4 and nb["cells"]
-    src = "\n".join("".join(c["source"]) for c in nb["cells"])
-    for s in ('PART = "motionlite_kd"', 'SEEDS = "1,2"', "DRIVE_DIR", "drive.mount", "torch.cuda.is_available",
-              "CODE_B64", '"pipeline", "fetch"', "zenodo.org/records/15687512", "pipeline cache",
-              "pipeline grid --grid pipeline/configs/grid_seeds.yaml", "--seeds {SEEDS}", "paths.runs="):
-        assert s in src, s
-    for c in nb["cells"]:   # a cell magic must be the first line of its cell
-        lines = "".join(c["source"]).splitlines()
-        assert not any(l.startswith("%%") for l in lines[1:]), lines[0]
-
-
 def test_requirements_minimal():
     # requirement lines only (comments stripped): Colab's preinstalled torch must not be reinstalled
     lines = [l.split("#", 1)[0].strip() for l in (ROOT / "requirements.txt").read_text().lower().splitlines()]

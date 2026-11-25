@@ -51,7 +51,7 @@ async def lifespan(app):
             );
         """)
         if "model" not in {r[1] for r in conn.execute("PRAGMA table_info(videos)")}:
-            conn.execute("ALTER TABLE videos ADD COLUMN model TEXT DEFAULT 'Vishnu ResNet18-LSTM'")
+            conn.execute("ALTER TABLE videos ADD COLUMN model TEXT DEFAULT 'Baseline ResNet18-LSTM'")
     yield
     monitor.stop()
 
@@ -140,7 +140,7 @@ def live_stream():
 @app.get("/api/detector")
 def active_model():
     config=profile()
-    engine="semester PyTorch" if "model" in config else os.environ.get("SURAKSHA_ENGINE","torch-cpu")
+    engine=os.environ.get("SURAKSHA_ENGINE","torch-cpu")
     return {"model":config["name"],"threshold":config["threshold"],"engine":engine}
 
 

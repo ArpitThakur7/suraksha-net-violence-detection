@@ -9,7 +9,7 @@ skipped wherever they were trained. Per cell: train_run (resumes from last.pt) t
 Sharding: shard = int(sha1(cell_id), 16) % n, identical on every machine (never Python hash()).
 `--shard 1,2/7` runs the union of shards 1 and 2. Cells run in (priority, seed, grid order).
 `--dry-run` prints cells, status and estimated hours from work/bench/epoch_seconds.csv.
-`--bundle` writes work/colab_bundle/ (repo.zip, cache.zip, splits/, bench/) for colab/train.ipynb.
+`--bundle` writes work/colab_bundle/ (repo.zip, cache.zip, splits/, bench/) for running the grid on a cloud GPU.
 """
 from __future__ import annotations
 

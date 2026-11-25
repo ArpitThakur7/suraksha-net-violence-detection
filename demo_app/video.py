@@ -4,7 +4,6 @@ from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 import os
-import sys
 
 import av
 import numpy as np
@@ -75,27 +74,12 @@ def optimized_engine(name):
 
 @lru_cache(maxsize=1)
 def profile():
-    release=os.environ.get("SURAKSHA_MODEL_RELEASE")
-    if not release:
-        return {"name":"Baseline ResNet18-LSTM","size":224,"threshold":0.40}
-    folder=Path(release).resolve()
-    sys.path.insert(0,str(ROOT/"semester_ml"))
-    from infer import load_model
-    model,item=load_model(folder/"best_model.pth")
-    if "head" not in item:raise ValueError("Choose a semester training release directory.")
-    return {"name":folder.parent.name+"/"+folder.name,"size":int(item["image_size"]),
-            "threshold":float(item["threshold"]),"model":model,"config":item["config"]}
+    """The model behind the /review upload screen."""
+    return {"name":"Baseline ResNet18-LSTM","size":224,"threshold":0.40}
 
 
 def active_score(frames):
-    p=profile()
-    if "model" not in p:return optimized_engine(os.environ.get("SURAKSHA_ENGINE","torch-cpu"))(frames)
-    from core import indices
-    from infer import release_logits
-    ix=indices(len(frames),32)
-    array=np.stack([frames[i][1] for i in ix])
-    with torch.inference_mode():
-        return float(release_logits(p["model"],p,array).softmax(1)[0,1])
+    return optimized_engine(os.environ.get("SURAKSHA_ENGINE","torch-cpu"))(frames)
 
 
 def analyze(path, threshold, scorer=None):

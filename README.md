@@ -15,7 +15,6 @@ implementation plan: [docs/superpowers/plans](docs/superpowers/plans/2026-11-22-
 | `work/splits/` | Locked protocol splits (`LOCK.json` holds their hashes) |
 | `work/runs/` | Training runs and test metrics (not in git) |
 | `work/bench/` | GPU memory and epoch-timing pilots |
-| `colab/` | Colab worker notebooks for the experiment grid |
 | `demo_app/` | Local web demo: upload a video, see flagged intervals (FastAPI) |
 | `datasets/public/` | The three datasets (not in git) |
 | `pretrained_weights/` | Cached ImageNet / Kinetics-400 backbone weights (not in git) |

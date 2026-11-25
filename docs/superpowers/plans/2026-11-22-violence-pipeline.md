@@ -248,7 +248,7 @@ paper/
   - `build_model(name: str, pretrained: bool = True, **kw) -> nn.Module`. Input `[B,T,3,H,W]` → logits `[B,2]`.
   - `MODEL_NORM: dict[str, tuple[list, list]]`: ImageNet stats for `cnn_lstm, mnv3_tsm, motionlite`; Kinetics stats for `r2plus1d, mvit_s`.
   - Model names:
-    - `cnn_lstm`: ResNet18 → LSTM(512→256, 1 layer) → last hidden state → Dropout 0.3 → Linear(256, 2). Matches Vishnu's architecture.
+    - `cnn_lstm`: ResNet18 → LSTM(512→256, 1 layer) → last hidden state → Dropout 0.3 → Linear(256, 2). Matches the semester baseline architecture.
     - `mnv3_tsm`: MobileNetV3-Large with a temporal shift (fold_div = 8) on the input of each inverted-residual block that has a residual connection → global pool → mean over T → Linear(960, 2).
     - `r2plus1d`: torchvision `r2plus1d_18(weights=KINETICS400_V1)` with fc replaced; permutes to `[B,3,T,H,W]`.
     - `mvit_s`: torchvision `mvit_v2_s(weights=KINETICS400_V1)` with the head replaced. Requires T = 16, 224 px.
@@ -446,7 +446,7 @@ paper/
     - `bias_bars`
     - `gradcam_panel` (8 test clips: TP, TN, FP, FN × 2; Grad-CAM on the last shared backbone block of M5, on the frame with the highest attention weight)
     - `pipeline_diagram` (static SVG, drawn once)
-  - `export_release(run_dir, dest="work/release")`: writes `best_model.pth`, `model_config.json`, `preprocessing_config.json`, `recommended_threshold.json`, `class_mapping.json` and `REPORT.md`, using the same key names as `ml_runs/two_sources/release/*.json`. If `suraksha/model.py` can't load the new architecture, add a minimal loader branch there (the one allowed edit outside `pipeline/`) and verify with `python semester_ml/infer.py`-style inference on `review/vishnu/sample_video.mp4`.
+  - `export_release(run_dir, dest="work/release")`: writes `best_model.pth`, `model_config.json`, `preprocessing_config.json`, `recommended_threshold.json`, `class_mapping.json` and `REPORT.md`, using the same key names as `ml_runs/two_sources/release/*.json`. If `suraksha/model.py` can't load the new architecture, add a minimal loader branch there (the one allowed edit outside `pipeline/`) and verify with `python semester_ml/infer.py`-style inference on a sample video.
   - `errors.csv` holds every misclassified test clip of M5 (seed 0, p2_all), with a free-text `category` column for manual tagging (crowding, low light, camera shake, sports/hug).
 - [ ] **Step 1: Write the tests**
   - `test_aggregate_mean_std`: 3 fake run directories with accuracy 0.8 / 0.9 / 1.0 give mean 0.9 and std 0.1 (ddof = 1).
