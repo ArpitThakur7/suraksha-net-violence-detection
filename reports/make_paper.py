@@ -1,6 +1,6 @@
 """Paper draft, generated offline from the live results.
 
-    python reports/make_paper.py   ->  reports/paper_draft.html and reports/paper_draft.docx (via Word)
+    python reports/make_paper.py   ->  reports/paper_draft.html, .docx and .pdf (via Word)
 
 Tables are filled from work/runs, work/probe and work/bench/speed.csv (seed means where several
 seeds have finished), so rerunning after the seed grid updates every number. Prose that depends on
@@ -122,8 +122,8 @@ def build():
     S.append(f"""
 <h1>Do violence detectors generalise? A leakage-controlled, cross-dataset evaluation of video foundation
 models and lightweight networks on RWF-2000, SFD and AIRTLab</h1>
-<p class=au>Arpit Thakur, Vishnu<br><i>Draft generated {pd.Timestamp.now():%d %B %Y}; numbers update when the
-experiments are re-run. Fine-tuned results are means over the training runs finished so far.</i></p>
+<p class=au>Arpit Thakur, Vishnu<br><i>{pd.Timestamp.now():%d %B %Y}. Code, splits and results:
+github.com/ArpitThakur7/suraksha-net-violence-detection</i></p>
 
 <h2>Abstract</h2>
 <p>Published violence-detection results on RWF-2000 range from 77% to almost 100% accuracy under
@@ -138,9 +138,12 @@ confidence intervals. The partially fine-tuned VideoMAE reaches a test ROC-AUC o
 RWF-2000 when trained only on the other two. Lightweight models lose more under this
 leave-one-dataset-out shift (mean ROC-AUC {f3(mean_lodo['motionlite'])} for MotionLite against
 {f3(mean_lodo['videomae_ft'])} for the fine-tuned VideoMAE), but run {vm.cpu_ms / ml.cpu_ms:.0f}× faster on a
-CPU with {vm.params_m / ml.params_m:.0f}× fewer parameters. Contrary to our expectation, random versus
-grouped splits changed scores by at most a few hundredths of ROC-AUC on these data; domain shift, not
-split leakage, is the dominant effect. We release the audit manifests, locked splits and code.</p>
+CPU with {vm.params_m / ml.params_m:.0f}× fewer parameters. Distilling VideoMAE into MotionLite raises its
+ROC-AUC on unseen AIRTLab from {f3(val(g, 'p3_no_avd', 'motionlite'))} to {f3(val(g, 'p3_no_avd', 'motionlite_kd'))}, above the
+fine-tuned VideoMAE ({f3(ft('p3_no_avd'))}). Contrary to our expectation, random versus grouped splits
+changed scores by at most a few hundredths of ROC-AUC on these data; domain shift, not split leakage, is
+the dominant effect. A live monitoring prototype runs the distilled model on a camera stream. We release
+the audit manifests, locked splits and code.</p>
 """)
 
     S.append(f"""
@@ -260,7 +263,7 @@ Frozen VideoMAE features with a linear classifier come second ({f3(val(g, 'p2_al
 ahead of every fine-tuned lightweight model (0.886–0.896).</p>
 {table(['Model', 'Runs', 'Pooled ROC-AUC', 'Pooled acc. (%)', 'RWF-2000 ROC-AUC', 'RWF-2000 acc. (%)'], rows,
        'Table 2. Within-domain test results. ROC-AUC is mean ± s.d. over training runs where more than one has finished. Bold: best per column.', bold)}
-{figure(FIGS / 'fig_roc_p2_all.png', 'Figure 1. ROC curves on the pooled test set.', 11)}
+{figure(FIGS / 'fig_roc_p2_all.png', 'Figure 1. ROC curves on the pooled test set (one training run per model, so the AUCs in the legend can differ slightly from the run means in Table 2).', 11)}
 """)
 
     rows, bold = [], set()
@@ -316,12 +319,25 @@ negative result because the opposite claim is common.</p>
 its CPU (fp32, 4 threads). On the CPU, the setting of inexpensive CCTV recorders without a GPU, MotionLite
 needs {ml.cpu_ms:.0f} ms per clip against {vm.cpu_ms:.0f} ms for VideoMAE ({vm.cpu_ms / ml.cpu_ms:.0f}× faster) with
 {vm.params_m / ml.params_m:.0f}× fewer parameters, at a cost of about {ft('p2_all') - val(g, 'p2_all', 'motionlite'):.2f}
-pooled ROC-AUC (Figure 3). Distillation from VideoMAE changed MotionLite's ROC-AUC by {gains}: a
-clear gain on unseen AIRTLab and small changes elsewhere, so we treat it as a modest, inconsistent
-improvement until more runs are in.</p>
+pooled ROC-AUC (Figure 3). Distillation from VideoMAE changed MotionLite's ROC-AUC by {gains}, each a
+mean over two training runs. The gains on unseen AIRTLab and on RWF-2000 are larger than the spread
+between runs; on the other protocols the change is within that spread. On unseen AIRTLab the distilled
+model ({f3(val(g, 'p3_no_avd', 'motionlite_kd'))}) also scores above the fine-tuned VideoMAE ({f3(ft('p3_no_avd'))}) with
+{vm.params_m / ml.params_m:.0f}× fewer parameters.</p>
 {table(['Model', 'Params (M)', 'GFLOPs', 'GPU ms', 'CPU ms', 'Pooled ROC-AUC'], rows,
        'Table 5. Cost per 16-frame clip (CLIP: 8 frames). Partial fine-tuning does not change VideoMAE inference cost.')}
 {figure(FIGS / 'fig_tradeoff_p2_all_cpu.png', 'Figure 3. Pooled test ROC-AUC against CPU latency per clip (log scale).', 14)}
+<h3>4.5 Live monitoring prototype</h3>
+<p>To check that the lightweight model works on a stream, the distilled MotionLite trained on the pooled
+protocol runs in a local web application that reads a webcam, an RTSP camera or a recording played back
+in real time. Frames go through the same test-time preprocessing as in evaluation (15 fps, short side 256,
+centre crop 224). Every second the model scores the last 4 seconds (16 frames), and an alert with a
+snapshot is raised when 3 of the last 5 scores reach the threshold chosen on validation data, with at most
+one alert per camera every 20 seconds. On a 30-second sequence assembled from held-out RWF-2000 test
+clips (alternating non-violent and violent scenes), non-violent scenes scored about 0.05–0.08 and violent
+scenes 0.92–0.96, and the alert fired about 5 seconds after the violent scene began; one forward pass took
+about 13 ms on the laptop GPU. This is a functional check, not an evaluation: false alarms per hour on
+long, continuous footage remain to be measured.</p>
 """)
 
     S.append(f"""
@@ -334,8 +350,9 @@ task without discarding that prior.</p>
 YouTube. We cannot rule out that some source videos appear in both, which would favour the
 Kinetics-pretrained models; a similar effect is documented for zero-shot action recognition
 {c('gowda2021truezeroshot')}.</p>
-<p><b>Small test sets and runs.</b> The SFD and AIRTLab test sets are small, and some results come from a
-single training run; the seed grid in progress adds runs for every fine-tuned model.</p>
+<p><b>Small test sets and runs.</b> The SFD and AIRTLab test sets have only 47 and 52 clips. The fine-tuned
+VideoMAE has three training runs and both MotionLite variants have two; MobileNetV3-TSM and the
+deterministic frozen probes have one.</p>
 <p><b>Thresholds under shift.</b> A threshold tuned on the training domains transfers poorly to a new
 dataset even when ranking quality (ROC-AUC) holds; deployments should recalibrate on local footage.</p>
 
@@ -345,7 +362,8 @@ dataset even when ranking quality (ROC-AUC) holds; deployments should recalibrat
 small fine-tuned networks lose much more on unseen datasets. Lightweight models remain an order of
 magnitude cheaper on a CPU, which keeps them relevant for edge deployment. On these datasets the
 measurable problem is domain shift rather than split leakage, and evaluation should include a dataset
-the model has never seen.</p>
+the model has never seen. Next steps are deploying the distilled model on edge hardware next to a
+camera and measuring false alarms on long, continuous footage.</p>
 """)
 
     refs = c.refs
@@ -393,9 +411,14 @@ def to_docx(src: Path, dst: Path):
     if dst.exists():
         dst.unlink()
     doc.SaveAs2(str(dst), FileFormat=16)
+    pdf = dst.with_suffix(".pdf")
+    if pdf.exists():
+        pdf.unlink()
+    doc.SaveAs2(str(pdf), FileFormat=17)   # wdFormatPDF
     doc.Close(False)
     word.Quit()
     print(f"wrote {dst}")
+    print(f"wrote {pdf}")
 
 
 if __name__ == "__main__":

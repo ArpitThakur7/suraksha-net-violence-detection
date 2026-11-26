@@ -23,3 +23,10 @@ reports/preview/
 
 # dataset footage (RWF-2000 thumbnails) must not be redistributed
 work/manifest/near_duplicates_sheet.png
+
+# university submission material (names, roll numbers, certificates) and personal notes: kept local
+presentation/
+reports/report/
+reports/Weekly_Project_Diary.*
+reports/make_diary.py
+reports/project_work_summary.md

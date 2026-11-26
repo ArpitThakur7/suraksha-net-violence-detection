@@ -9,8 +9,8 @@ p.cap{font-size:9.5pt;text-align:center;margin:2pt 0 6pt 0} p.fig{text-align:cen
 ol.refs li{font-size:9.5pt;margin-bottom:2pt}</style></head><body>
 <h1>Do violence detectors generalise? A leakage-controlled, cross-dataset evaluation of video foundation
 models and lightweight networks on RWF-2000, SFD and AIRTLab</h1>
-<p class=au>Arpit Thakur, Vishnu<br><i>Draft generated 24 November 2026; numbers update when the
-experiments are re-run. Fine-tuned results are means over the training runs finished so far.</i></p>
+<p class=au>Arpit Thakur, Vishnu<br><i>25 November 2026. Code, splits and results:
+github.com/ArpitThakur7/suraksha-net-violence-detection</i></p>
 
 <h2>Abstract</h2>
 <p>Published violence-detection results on RWF-2000 range from 77% to almost 100% accuracy under
@@ -20,14 +20,17 @@ at the level of file hashes, perceptual near-duplicates and source videos, and f
 that share YouTube source videos with SFD. On grouped, hash-locked splits we compare frozen video
 foundation models with linear classifiers, a partially fine-tuned VideoMAE, and lightweight
 fine-tuned networks, choosing every threshold on validation data and reporting group-bootstrap
-confidence intervals. The partially fine-tuned VideoMAE reaches a test ROC-AUC of 0.974
-(91.0% accuracy) on the pooled datasets and keeps 0.963 on
+confidence intervals. The partially fine-tuned VideoMAE reaches a test ROC-AUC of 0.972
+(91.2% accuracy) on the pooled datasets and keeps 0.963 on
 RWF-2000 when trained only on the other two. Lightweight models lose more under this
-leave-one-dataset-out shift (mean ROC-AUC 0.769 for MotionLite against
-0.884 for the fine-tuned VideoMAE), but run 8× faster on a
-CPU with 29× fewer parameters. Contrary to our expectation, random versus
-grouped splits changed scores by at most a few hundredths of ROC-AUC on these data; domain shift, not
-split leakage, is the dominant effect. We release the audit manifests, locked splits and code.</p>
+leave-one-dataset-out shift (mean ROC-AUC 0.782 for MotionLite against
+0.887 for the fine-tuned VideoMAE), but run 8× faster on a
+CPU with 29× fewer parameters. Distilling VideoMAE into MotionLite raises its
+ROC-AUC on unseen AIRTLab from 0.762 to 0.829, above the
+fine-tuned VideoMAE (0.792). Contrary to our expectation, random versus grouped splits
+changed scores by at most a few hundredths of ROC-AUC on these data; domain shift, not split leakage, is
+the dominant effect. A live monitoring prototype runs the distilled model on a camera stream. We release
+the audit manifests, locked splits and code.</p>
 
 <h2>1. Introduction</h2>
 <p>Automatic violence detection in surveillance video is usually benchmarked on RWF-2000 [1],
@@ -115,23 +118,23 @@ and standard deviation across seeds.</p>
 <h2>4. Results</h2>
 <h3>4.1 Within-domain accuracy</h3>
 <p>Table 2 gives test results on the pooled protocol (499 test clips) and on RWF-2000 alone (400 clips).
-The partially fine-tuned VideoMAE is best on both, with ROC-AUC 0.974 and 0.978.
+The partially fine-tuned VideoMAE is best on both, with ROC-AUC 0.972 and 0.978.
 Frozen VideoMAE features with a linear classifier come second (0.949 pooled),
 ahead of every fine-tuned lightweight model (0.886–0.896).</p>
-<p class=cap>Table 2. Within-domain test results. ROC-AUC is mean ± s.d. over training runs where more than one has finished. Bold: best per column.</p><table><tr><th>Model</th><th>Runs</th><th>Pooled ROC-AUC</th><th>Pooled acc. (%)</th><th>RWF-2000 ROC-AUC</th><th>RWF-2000 acc. (%)</th></tr><tr><td>VideoMAE-B, fine-tuned (last 4 blocks)</td><td>2</td><td class=b>0.974 ± 0.002</td><td class=b>91.0</td><td class=b>0.978 ± 0.001</td><td class=b>91.3</td></tr><tr><td>VideoMAE-B, frozen</td><td>1</td><td>0.949</td><td>87.0</td><td>0.945</td><td>86.2</td></tr><tr><td>VideoMAE + CLIP, frozen</td><td>1</td><td>0.946</td><td>86.8</td><td>0.945</td><td>85.5</td></tr><tr><td>CLIP ViT-B/16, frozen</td><td>1</td><td>0.900</td><td>82.8</td><td>0.895</td><td>81.5</td></tr><tr><td>R(2+1)D-18, frozen</td><td>1</td><td>0.864</td><td>76.8</td><td>0.913</td><td>80.2</td></tr><tr><td>MobileNetV3-TSM, fine-tuned</td><td>1</td><td>0.896</td><td>80.8</td><td>0.890</td><td>81.2</td></tr><tr><td>MotionLite + distillation (ours)</td><td>1</td><td>0.893</td><td>80.6</td><td>0.906</td><td>76.8</td></tr><tr><td>MotionLite (ours), fine-tuned</td><td>1</td><td>0.886</td><td>81.6</td><td>0.901</td><td>81.8</td></tr></table>
-<p class=fig><img src="file:///E:/Projects/major/work/results/figs/fig_roc_p2_all.png" width=415 height=397></p><p class=cap>Figure 1. ROC curves on the pooled test set.</p>
+<p class=cap>Table 2. Within-domain test results. ROC-AUC is mean ± s.d. over training runs where more than one has finished. Bold: best per column.</p><table><tr><th>Model</th><th>Runs</th><th>Pooled ROC-AUC</th><th>Pooled acc. (%)</th><th>RWF-2000 ROC-AUC</th><th>RWF-2000 acc. (%)</th></tr><tr><td>VideoMAE-B, fine-tuned (last 4 blocks)</td><td>3</td><td class=b>0.972 ± 0.004</td><td class=b>91.2</td><td class=b>0.978 ± 0.001</td><td class=b>91.6</td></tr><tr><td>VideoMAE-B, frozen</td><td>1</td><td>0.949</td><td>87.0</td><td>0.945</td><td>86.2</td></tr><tr><td>VideoMAE + CLIP, frozen</td><td>1</td><td>0.946</td><td>86.8</td><td>0.945</td><td>85.5</td></tr><tr><td>CLIP ViT-B/16, frozen</td><td>1</td><td>0.900</td><td>82.8</td><td>0.895</td><td>81.5</td></tr><tr><td>R(2+1)D-18, frozen</td><td>1</td><td>0.864</td><td>76.8</td><td>0.913</td><td>80.2</td></tr><tr><td>MobileNetV3-TSM, fine-tuned</td><td>1</td><td>0.896</td><td>80.8</td><td>0.890</td><td>81.2</td></tr><tr><td>MotionLite + distillation (ours)</td><td>2</td><td>0.898 ± 0.007</td><td>80.4</td><td>0.910 ± 0.006</td><td>78.8</td></tr><tr><td>MotionLite (ours), fine-tuned</td><td>2</td><td>0.895 ± 0.012</td><td>81.9</td><td>0.897 ± 0.006</td><td>83.4</td></tr></table>
+<p class=fig><img src="file:///E:/Projects/major/work/results/figs/fig_roc_p2_all.png" width=415 height=397></p><p class=cap>Figure 1. ROC curves on the pooled test set (one training run per model, so the AUCs in the legend can differ slightly from the run means in Table 2).</p>
 
 <h3>4.2 Generalisation to an unseen dataset</h3>
 <p>Under LODO (Table 3) every model loses accuracy relative to the pooled protocol, but large pretrained
 models lose far less. Trained on SFD and AIRTLab only (531 clips), the fine-tuned VideoMAE still reaches
 0.963 on RWF-2000. The concatenated VideoMAE + CLIP probe has the best mean over the three
 held-out datasets (0.911). The lightweight models fall to a mean of
-0.789 (MobileNetV3-TSM) and 0.769 (MotionLite). The SFD and AIRTLab
+0.789 (MobileNetV3-TSM) and 0.782 (MotionLite). The SFD and AIRTLab
 test sets have only 47 and 52 clips, so their intervals are wide (Figure 2). Accuracy at the frozen
 threshold drops more than ROC-AUC: for instance MotionLite on unseen AIRTLab ranks clips with ROC-AUC
-0.742 but reaches only 51.9% accuracy, because the
+0.762 but reaches only 62.5% accuracy, because the
 threshold chosen on the training domains does not transfer.</p>
-<p class=cap>Table 3. Leave-one-dataset-out test ROC-AUC (train on the other two datasets). Bold: best per column.</p><table><tr><th>Model</th><th>Unseen RWF-2000</th><th>Unseen SFD</th><th>Unseen AIRTLab</th><th>Mean</th></tr><tr><td>VideoMAE-B, fine-tuned (last 4 blocks)</td><td class=b>0.963</td><td class=b>0.902</td><td>0.786</td><td>0.884</td></tr><tr><td>VideoMAE-B, frozen</td><td>0.888</td><td>0.876</td><td>0.858</td><td>0.874</td></tr><tr><td>VideoMAE + CLIP, frozen</td><td>0.948</td><td>0.885</td><td class=b>0.899</td><td class=b>0.911</td></tr><tr><td>CLIP ViT-B/16, frozen</td><td>0.894</td><td>0.824</td><td>0.863</td><td>0.860</td></tr><tr><td>R(2+1)D-18, frozen</td><td>0.748</td><td>0.791</td><td>0.789</td><td>0.776</td></tr><tr><td>MobileNetV3-TSM, fine-tuned</td><td>0.841</td><td>0.804</td><td>0.721</td><td>0.789</td></tr><tr><td>MotionLite + distillation (ours)</td><td>0.811</td><td>0.749</td><td>0.819</td><td>0.793</td></tr><tr><td>MotionLite (ours), fine-tuned</td><td>0.804</td><td>0.762</td><td>0.742</td><td>0.769</td></tr></table>
+<p class=cap>Table 3. Leave-one-dataset-out test ROC-AUC (train on the other two datasets). Bold: best per column.</p><table><tr><th>Model</th><th>Unseen RWF-2000</th><th>Unseen SFD</th><th>Unseen AIRTLab</th><th>Mean</th></tr><tr><td>VideoMAE-B, fine-tuned (last 4 blocks)</td><td class=b>0.963 ± 0.001</td><td class=b>0.905 ± 0.014</td><td>0.792 ± 0.011</td><td>0.887</td></tr><tr><td>VideoMAE-B, frozen</td><td>0.888</td><td>0.876</td><td>0.858</td><td>0.874</td></tr><tr><td>VideoMAE + CLIP, frozen</td><td>0.948</td><td>0.885</td><td class=b>0.899</td><td class=b>0.911</td></tr><tr><td>CLIP ViT-B/16, frozen</td><td>0.894</td><td>0.824</td><td>0.863</td><td>0.860</td></tr><tr><td>R(2+1)D-18, frozen</td><td>0.748</td><td>0.791</td><td>0.789</td><td>0.776</td></tr><tr><td>MobileNetV3-TSM, fine-tuned</td><td>0.841</td><td>0.804</td><td>0.721</td><td>0.789</td></tr><tr><td>MotionLite + distillation (ours)</td><td>0.826 ± 0.021</td><td>0.761 ± 0.017</td><td>0.829 ± 0.015</td><td>0.805</td></tr><tr><td>MotionLite (ours), fine-tuned</td><td>0.826 ± 0.031</td><td>0.757 ± 0.006</td><td>0.762 ± 0.029</td><td>0.782</td></tr></table>
 <p class=fig><img src="file:///E:/Projects/major/work/results/figs/fig_auc_protocols.png" width=585 height=468></p><p class=cap>Figure 2. Test ROC-AUC with 95% group-bootstrap intervals for every protocol. Filled markers: frozen backbones; hollow: fine-tuned.</p>
 
 <h3>4.3 Does split leakage inflate scores?</h3>
@@ -147,12 +150,25 @@ negative result because the opposite claim is common.</p>
 <p>Table 5 lists model size and latency for one 16-frame clip on the laptop's RTX 4050 GPU (fp16) and on
 its CPU (fp32, 4 threads). On the CPU, the setting of inexpensive CCTV recorders without a GPU, MotionLite
 needs 156 ms per clip against 1286 ms for VideoMAE (8× faster) with
-29× fewer parameters, at a cost of about 0.09
-pooled ROC-AUC (Figure 3). Distillation from VideoMAE changed MotionLite's ROC-AUC by +0.007 (pooled), +0.005 (RWF-2000), +0.007 (unseen RWF-2000), -0.013 (unseen SFD), +0.077 (unseen AIRTLab): a
-clear gain on unseen AIRTLab and small changes elsewhere, so we treat it as a modest, inconsistent
-improvement until more runs are in.</p>
-<p class=cap>Table 5. Cost per 16-frame clip (CLIP: 8 frames). Partial fine-tuning does not change VideoMAE inference cost.</p><table><tr><th>Model</th><th>Params (M)</th><th>GFLOPs</th><th>GPU ms</th><th>CPU ms</th><th>Pooled ROC-AUC</th></tr><tr><td>MotionLite (ours), fine-tuned</td><td>3.0</td><td>9</td><td>10.5</td><td>156</td><td>0.886</td></tr><tr><td>MobileNetV3-TSM, fine-tuned</td><td>3.0</td><td>7</td><td>7.8</td><td>97</td><td>0.896</td></tr><tr><td>R(2+1)D-18, frozen</td><td>31.3</td><td>324</td><td>50.3</td><td>1352</td><td>0.864</td></tr><tr><td>CLIP ViT-B/16, frozen</td><td>86.2</td><td>270</td><td>21.9</td><td>911</td><td>0.900</td></tr><tr><td>VideoMAE-B, frozen</td><td>86.2</td><td>270</td><td>25.4</td><td>1286</td><td>0.949</td></tr><tr><td>VideoMAE-B, fine-tuned (last 4 blocks)</td><td>86.2</td><td>270</td><td>25.4</td><td>1286</td><td>0.974 ± 0.002</td></tr></table>
+29× fewer parameters, at a cost of about 0.08
+pooled ROC-AUC (Figure 3). Distillation from VideoMAE changed MotionLite's ROC-AUC by +0.003 (pooled), +0.013 (RWF-2000), +0.001 (unseen RWF-2000), +0.004 (unseen SFD), +0.067 (unseen AIRTLab), each a
+mean over two training runs. The gains on unseen AIRTLab and on RWF-2000 are larger than the spread
+between runs; on the other protocols the change is within that spread. On unseen AIRTLab the distilled
+model (0.829) also scores above the fine-tuned VideoMAE (0.792) with
+29× fewer parameters.</p>
+<p class=cap>Table 5. Cost per 16-frame clip (CLIP: 8 frames). Partial fine-tuning does not change VideoMAE inference cost.</p><table><tr><th>Model</th><th>Params (M)</th><th>GFLOPs</th><th>GPU ms</th><th>CPU ms</th><th>Pooled ROC-AUC</th></tr><tr><td>MotionLite (ours), fine-tuned</td><td>3.0</td><td>9</td><td>10.5</td><td>156</td><td>0.895 ± 0.012</td></tr><tr><td>MobileNetV3-TSM, fine-tuned</td><td>3.0</td><td>7</td><td>7.8</td><td>97</td><td>0.896</td></tr><tr><td>R(2+1)D-18, frozen</td><td>31.3</td><td>324</td><td>50.3</td><td>1352</td><td>0.864</td></tr><tr><td>CLIP ViT-B/16, frozen</td><td>86.2</td><td>270</td><td>21.9</td><td>911</td><td>0.900</td></tr><tr><td>VideoMAE-B, frozen</td><td>86.2</td><td>270</td><td>25.4</td><td>1286</td><td>0.949</td></tr><tr><td>VideoMAE-B, fine-tuned (last 4 blocks)</td><td>86.2</td><td>270</td><td>25.4</td><td>1286</td><td>0.972 ± 0.004</td></tr></table>
 <p class=fig><img src="file:///E:/Projects/major/work/results/figs/fig_tradeoff_p2_all_cpu.png" width=529 height=352></p><p class=cap>Figure 3. Pooled test ROC-AUC against CPU latency per clip (log scale).</p>
+<h3>4.5 Live monitoring prototype</h3>
+<p>To check that the lightweight model works on a stream, the distilled MotionLite trained on the pooled
+protocol runs in a local web application that reads a webcam, an RTSP camera or a recording played back
+in real time. Frames go through the same test-time preprocessing as in evaluation (15 fps, short side 256,
+centre crop 224). Every second the model scores the last 4 seconds (16 frames), and an alert with a
+snapshot is raised when 3 of the last 5 scores reach the threshold chosen on validation data, with at most
+one alert per camera every 20 seconds. On a 30-second sequence assembled from held-out RWF-2000 test
+clips (alternating non-violent and violent scenes), non-violent scenes scored about 0.05–0.08 and violent
+scenes 0.92–0.96, and the alert fired about 5 seconds after the violent scene began; one forward pass took
+about 13 ms on the laptop GPU. This is a functional check, not an evaluation: false alarms per hour on
+long, continuous footage remain to be measured.</p>
 
 <h2>5. Discussion and limitations</h2>
 <p><b>Why large pretrained models generalise better.</b> VideoMAE and CLIP were trained on far more and
@@ -163,16 +179,18 @@ task without discarding that prior.</p>
 YouTube. We cannot rule out that some source videos appear in both, which would favour the
 Kinetics-pretrained models; a similar effect is documented for zero-shot action recognition
 [18].</p>
-<p><b>Small test sets and runs.</b> The SFD and AIRTLab test sets are small, and some results come from a
-single training run; the seed grid in progress adds runs for every fine-tuned model.</p>
+<p><b>Small test sets and runs.</b> The SFD and AIRTLab test sets have only 47 and 52 clips. The fine-tuned
+VideoMAE has three training runs and both MotionLite variants have two; MobileNetV3-TSM and the
+deterministic frozen probes have one.</p>
 <p><b>Thresholds under shift.</b> A threshold tuned on the training domains transfers poorly to a new
 dataset even when ranking quality (ROC-AUC) holds; deployments should recalibrate on local footage.</p>
 
 <h2>6. Conclusion</h2>
 <p>With leakage-controlled splits, a partially fine-tuned VideoMAE detects violence with ROC-AUC
-0.974 on three pooled datasets and 0.963 on RWF-2000 without training on it, while
+0.972 on three pooled datasets and 0.963 on RWF-2000 without training on it, while
 small fine-tuned networks lose much more on unseen datasets. Lightweight models remain an order of
 magnitude cheaper on a CPU, which keeps them relevant for edge deployment. On these datasets the
 measurable problem is domain shift rather than split leakage, and evaluation should include a dataset
-the model has never seen.</p>
+the model has never seen. Next steps are deploying the distilled model on edge hardware next to a
+camera and measuring false alarms on long, continuous footage.</p>
 <h2>References</h2><ol class=refs><li>M. Cheng, K. Cai, M. Li. RWF-2000: An Open Large Scale Video Database for Violence Detection. 2020 25th International Conference on Pattern Recognition (ICPR), 2021.</li><li>S. Akti, G. Tataroglu, H. Ekenel. Vision-based Fight Detection from Surveillance Cameras. 2019 Ninth International Conference on Image Processing Theory, Tools and Applications (IPTA), 2019.</li><li>M. Bianculli, N. Falcionelli, P. Sernani et al.. A dataset for automatic violence detection in videos. Data in Brief, 2020.</li><li>Z. Islam, M. Rukonuzzaman, R. Ahmed et al.. Efficient Two-Stream Network for Violence Detection Using Separable Convolutional LSTM. 2021 International Joint Conference on Neural Networks (IJCNN), 2021.</li><li>Y. Zhang, Y. Li, S. Guo. Lightweight mobile network for real-time violence recognition. PLOS ONE, 2022.</li><li>E. Veltmeijer, M. Franken, C. Gerritsen. Real-time violence detection and localization through subgroup analysis. Multimedia Tools and Applications, 2024.</li><li>D. Senadeera, X. Yang, D. Kollias et al.. CUE-Net: Violence Detection Video Analytics with Spatial Cropping, Enhanced UniformerV2 and Modified Efficient Additive Attention. arXiv:2404.18952, 2024.</li><li>D. Senadeera, M. Awais, S. Li et al.. FuseMamba-VD: Dual Branch VideoMamba with Gated Class Token Fusion for Violence Detection. arXiv:2506.03162, 2025.</li><li>F. Rendón-Segador, J. Álvarez-García, L. Soria-Morillo. Transformer and Adaptive Threshold Sliding Window for Improving Violence Detection in Videos. Sensors, 2024.</li><li>H. Coşkun, F. Çolhak, A. Kulakov et al.. Privacy-Preserving Smart Surveillance with Cross-Dataset Violence Detection and Decentralized Evidence Governance. arXiv:2606.01225, 2026.</li><li>M. Tan, R. Liu, S. Zhou et al.. GVD: general violence detection via semantic differentiation and orthogonal supervision. Scientific Reports, 2026.</li><li>Z. Tong, Y. Song, J. Wang and L. Wang. VideoMAE: Masked Autoencoders are Data-Efficient Learners for Self-Supervised Video Pre-Training. NeurIPS, 2022.</li><li>A. Radford et al. Learning Transferable Visual Models From Natural Language Supervision. ICML, 2021.</li><li>G. Hinton, O. Vinyals and J. Dean. Distilling the Knowledge in a Neural Network. arXiv:1503.02531, 2015.</li><li>D. Tran, H. Wang, L. Torresani, J. Ray, Y. LeCun and M. Paluri. A Closer Look at Spatiotemporal Convolutions for Action Recognition. CVPR, 2018.</li><li>M. Kang, R. Park, H. Park. Efficient Spatio-Temporal Modeling Methods for Real-Time Violence Recognition. IEEE Access, 2021.</li><li>B. Efron and R. J. Tibshirani. An Introduction to the Bootstrap. Chapman and Hall/CRC, 1994.</li><li>S. Gowda, L. Sevilla-Lara, K. Kim et al.. A New Split for Evaluating True Zero-Shot Action Recognition. arXiv:2107.13029, 2021.</li></ol></body></html>
